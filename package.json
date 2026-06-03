@@ -1,0 +1,12 @@
+{
+  "name": "imgbest-ai-product-studio",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node --no-warnings server.js",
+    "check": "node --check app.js && node --check server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

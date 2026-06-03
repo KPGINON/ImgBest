@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ImgBest AI 商品图定制</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="ImgBest 首页">
+        <span class="brand-mark">IB</span>
+        <span>ImgBest</span>
+      </a>
+      <nav class="nav" aria-label="主导航">
+        <a href="#studio">定制生成</a>
+        <a href="#replace">一键换包</a>
+        <a href="#features">付费功能</a>
+        <a href="#api">接口</a>
+      </nav>
+      <button class="ghost-button" type="button">导入商品</button>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-media" aria-hidden="true">
+          <img src="./assets/hero-bag-model.png" alt="" />
+          <div class="hero-scrim"></div>
+        </div>
+        <div class="hero-content">
+          <p class="eyebrow">AI 电商产品图工作台</p>
+          <h1 id="hero-title">电商产品图批量定制生成</h1>
+          <p class="hero-copy">
+            用品牌风格包、场景模板、批量变体和卖点提炼，把一张商品 brief 扩展成首图、详情页和广告投放素材。
+          </p>
+          <div class="hero-actions">
+            <a class="primary-button" href="#studio">开始定制</a>
+            <a class="secondary-button" href="#api">查看接口</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="studio" id="studio" aria-labelledby="studio-title">
+        <div class="section-heading">
+          <p class="eyebrow">Custom Studio</p>
+          <h2 id="studio-title">付费版生成工作台</h2>
+        </div>
+
+        <div class="workspace">
+          <form class="control-panel" id="generationForm">
+            <label class="field">
+              <span>商品类型</span>
+              <select id="productType">
+                <option value="premium handbag">高端女包</option>
+                <option value="crossbody bag">斜挎包</option>
+                <option value="tote bag">通勤托特包</option>
+                <option value="backpack">双肩包</option>
+              </select>
+            </label>
+
+            <div class="field-row">
+              <label class="field">
+                <span>图片用途</span>
+                <select id="usage">
+                  <option value="marketplace hero image">电商首图</option>
+                  <option value="detail page lifestyle image">详情页生活方式图</option>
+                  <option value="social ad creative">社媒广告图</option>
+                  <option value="catalog product visual">目录商品图</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>品牌风格包</span>
+                <select id="brandKit">
+                  <option value="quiet luxury, refined editorial, premium materials">轻奢质感</option>
+                  <option value="clean marketplace, bright product detail, conversion focused">平台爆款</option>
+                  <option value="urban commute, confident model, modern lifestyle">都市通勤</option>
+                  <option value="minimal studio, precise texture, catalog consistency">统一目录</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="template-grid" aria-label="场景模板">
+              <button class="template-card is-active" type="button" data-template="sunlit city street, natural walking pose, premium editorial product focus">
+                <span>通勤街拍</span>
+                <small>首图/广告</small>
+              </button>
+              <button class="template-card" type="button" data-template="minimal studio set, seamless backdrop, sharp leather and hardware details">
+                <span>棚拍目录</span>
+                <small>详情页</small>
+              </button>
+              <button class="template-card" type="button" data-template="boutique interior, soft window light, premium retail atmosphere">
+                <span>精品店</span>
+                <small>高端感</small>
+              </button>
+            </div>
+
+            <label class="field">
+              <span>定制化要求</span>
+              <textarea
+                id="customPrompt"
+                rows="7"
+                placeholder="例如：亚洲模特，米白色真皮包，都市通勤场景，晨光，高级杂志感，突出皮革纹理和金属扣细节，背景干净"
+              ></textarea>
+            </label>
+
+            <div class="field-row">
+              <label class="field">
+                <span>画幅</span>
+                <select id="aspectRatio">
+                  <option value="4:5">4:5 首图</option>
+                  <option value="1:1">1:1 方图</option>
+                  <option value="9:16">9:16 竖版广告</option>
+                  <option value="16:9">16:9 横版横幅</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>真实度</span>
+                <select id="realism">
+                  <option value="ultra photorealistic">超高真实</option>
+                  <option value="editorial realistic">杂志真实</option>
+                  <option value="clean studio realistic">棚拍真实</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label class="field">
+                <span>批量变体</span>
+                <select id="variantCount">
+                  <option value="2">2 张</option>
+                  <option value="4" selected>4 张</option>
+                  <option value="6">6 张</option>
+                  <option value="8">8 张</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>出图策略</span>
+                <select id="generationMode">
+                  <option value="balanced">均衡质量</option>
+                  <option value="speed">快速出草图</option>
+                  <option value="premium">精修大片</option>
+                </select>
+              </label>
+            </div>
+
+            <fieldset class="checks">
+              <legend>增值模块</legend>
+              <label><input type="checkbox" value="extract selling points from product brief" checked /> 自动提炼卖点</label>
+              <label><input type="checkbox" value="generate channel-ready prompt variants" checked /> 渠道化 prompt 变体</label>
+              <label><input type="checkbox" value="keep product shape and material consistent" checked /> 商品一致性锁定</label>
+              <label><input type="checkbox" value="accurate hands and bag straps" checked /> 手部和肩带自然</label>
+              <label><input type="checkbox" value="sharp product texture" checked /> 商品纹理清晰</label>
+            </fieldset>
+
+            <div class="score-card">
+              <span>Prompt 成熟度</span>
+              <strong id="promptScore">62</strong>
+              <div class="score-bar"><i id="scoreBar"></i></div>
+            </div>
+
+            <div class="button-row">
+              <button class="submit-button" type="submit">批量生成商品图</button>
+              <button class="export-button" id="exportPayload" type="button">导出任务</button>
+            </div>
+          </form>
+
+          <aside class="preview-panel" aria-live="polite">
+            <div class="preview-toolbar">
+              <div>
+                <p class="eyebrow">Preview</p>
+                <h3>生成预览</h3>
+              </div>
+              <span class="status-pill" id="statusPill">待生成</span>
+            </div>
+
+            <div class="result-frame">
+              <img id="resultImage" src="./assets/hero-bag-model.png" alt="AI 生成的模特包包商品图预览" />
+              <div class="loading" id="loadingState" hidden>
+                <span class="spinner"></span>
+                <span>正在提交生成任务</span>
+              </div>
+            </div>
+
+            <div class="result-meta">
+              <div>
+                <span>当前 prompt</span>
+                <p id="promptPreview">等待输入定制化要求。</p>
+              </div>
+              <div>
+                <span>任务编号</span>
+                <p id="taskId">-</p>
+              </div>
+            </div>
+
+            <div class="variant-strip" id="variantStrip" aria-label="生成变体"></div>
+
+            <div class="history-panel">
+              <div class="mini-heading">
+                <span>最近任务</span>
+                <button id="clearHistory" type="button">清空</button>
+              </div>
+              <div class="history-list" id="historyList">
+                <p class="empty-state">暂无生成记录。</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="replace" id="replace" aria-labelledby="replace-title">
+        <div class="section-heading">
+          <p class="eyebrow">AI Replacement</p>
+          <h2 id="replace-title">一键替换模特手中的包</h2>
+        </div>
+
+        <div class="replace-workspace">
+          <form class="replace-panel" id="replaceForm">
+            <div class="upload-grid">
+              <label class="upload-card">
+                <input type="file" accept="image/*" data-upload="bagFront" />
+                <span>包正面</span>
+                <img data-preview="bagFront" alt="" hidden />
+                <small>Front</small>
+              </label>
+              <label class="upload-card">
+                <input type="file" accept="image/*" data-upload="bagLeft45" />
+                <span>左 45 度</span>
+                <img data-preview="bagLeft45" alt="" hidden />
+                <small>Left 45</small>
+              </label>
+              <label class="upload-card">
+                <input type="file" accept="image/*" data-upload="bagRight45" />
+                <span>右 45 度</span>
+                <img data-preview="bagRight45" alt="" hidden />
+                <small>Right 45</small>
+              </label>
+              <label class="upload-card">
+                <input type="file" accept="image/*" data-upload="bagTop" />
+                <span>顶部</span>
+                <img data-preview="bagTop" alt="" hidden />
+                <small>Top</small>
+              </label>
+              <label class="upload-card model-upload">
+                <input type="file" accept="image/*" data-upload="modelImage" />
+                <span>模特图</span>
+                <img data-preview="modelImage" alt="" hidden />
+                <small>Model</small>
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label class="field">
+                <span>持包方式</span>
+                <select id="holdingStyle">
+                  <option value="model holding the handbag naturally by the handle">手提</option>
+                  <option value="model wearing the handbag on shoulder">肩背</option>
+                  <option value="model wearing the handbag crossbody">斜挎</option>
+                  <option value="model holding the handbag in crook of arm">挽臂</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>融合强度</span>
+                <select id="blendStrength">
+                  <option value="balanced identity and product fidelity">均衡</option>
+                  <option value="prioritize product shape and material fidelity">优先保包型</option>
+                  <option value="prioritize natural pose and lighting integration">优先自然融合</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>替换要求</span>
+              <textarea
+                id="replacePrompt"
+                rows="5"
+                placeholder="例如：保持模特脸和姿势不变，把原来的包替换成上传的米白色包，手部自然握住包柄，光线和阴影匹配原图"
+              ></textarea>
+            </label>
+
+            <div class="button-row">
+              <button class="submit-button" type="submit">一键替换生成</button>
+              <button class="export-button" id="exportReplacePayload" type="button">导出换包任务</button>
+            </div>
+          </form>
+
+          <aside class="replace-preview">
+            <div class="preview-toolbar">
+              <div>
+                <p class="eyebrow">Replacement</p>
+                <h3>换包结果</h3>
+              </div>
+              <span class="status-pill" id="replaceStatus">待上传</span>
+            </div>
+            <div class="replace-canvas">
+              <img id="replaceResult" src="./assets/hero-bag-model.png" alt="AI 一键换包结果预览" />
+              <div class="loading" id="replaceLoading" hidden>
+                <span class="spinner"></span>
+                <span>正在生成换包任务</span>
+              </div>
+            </div>
+            <div class="replace-readiness" id="replaceReadiness">
+              已上传 0/5 张参考图
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="workflow" id="features" aria-labelledby="workflow-title">
+        <div class="section-heading">
+          <p class="eyebrow">Paid Features</p>
+          <h2 id="workflow-title">值得收费的核心能力</h2>
+        </div>
+        <div class="steps">
+          <article>
+            <span>01</span>
+            <h3>批量变体</h3>
+            <p>一次 brief 生成多张场景、镜头和渠道变体，适合投放测试和详情页铺图。</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>品牌风格包</h3>
+            <p>沉淀品牌调性、光线、构图和商品质感，保证不同批次出图统一。</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>一键换包</h3>
+            <p>上传包的多视图和模特图，生成模特自然拿着指定包的商品图。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="api" id="api" aria-labelledby="api-title">
+        <div class="section-heading">
+          <p class="eyebrow">API Hook</p>
+          <h2 id="api-title">ComfyUI 接口占位</h2>
+        </div>
+        <div class="api-layout">
+          <div class="api-copy">
+            <p>
+              当前前端已接入 <code>/api/generate-image</code> 后端代理。后端会写入 SQLite、保存上传素材，
+              后续在 <code>server.js</code> 中把任务转发到 ComfyUI 并回填真实 <code>imageUrl</code>。
+            </p>
+          </div>
+          <pre class="code-block" id="payloadView">等待生成请求。</pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
