@@ -180,6 +180,19 @@
           </div>
           <p>查看账户积分、邀请信息、积分流水，以及当前账号生成过的图片任务。</p>
         </div>
+        <section class="auth-panel" aria-labelledby="auth-title">
+          <div>
+            <span id="auth-title">账号登录</span>
+            <p id="authStatus">注册或登录后才能充值、生成和查看历史。</p>
+          </div>
+          <form class="auth-form" id="authForm">
+            <input id="authUsername" name="username" type="text" autocomplete="username" placeholder="账号" />
+            <input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="密码至少 8 位" />
+            <button class="export-button" id="loginButton" type="submit">登录</button>
+            <button class="export-button" id="registerButton" type="button">注册</button>
+            <button class="export-button" id="logoutButton" type="button" hidden>退出</button>
+          </form>
+        </section>
         <div class="profile-grid">
           <article class="profile-card profile-balance-card">
             <span>积分余额</span>

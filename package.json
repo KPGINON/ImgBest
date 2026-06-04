@@ -4,9 +4,17 @@
   "private": true,
   "scripts": {
     "start": "node --no-warnings server.js",
-    "check": "node --check app.js && node --check server.js"
+    "check": "node --check app.js && node --check server.js && node --check src/db.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "dotenv": "^16.5.0",
+    "prisma": "^6.9.0"
   }
 }

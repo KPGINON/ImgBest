@@ -2,6 +2,7 @@ const COMFYUI_ENDPOINT = "/api/generate-image";
 const MOCK_IMAGE_URL = "./assets/hero-bag-model.png";
 const STORAGE_KEY = "imgbest-generation-history";
 const CLIENT_ID_KEY = "imgbest-client-id";
+const AUTH_TOKEN_KEY = "imgbest-auth-token";
 const PLAN_RANK = {
   basic: 1,
   pro: 2,
@@ -67,6 +68,13 @@ const ledgerList = document.querySelector("#ledgerList");
 const profileTaskHistory = document.querySelector("#profileTaskHistory");
 const refreshProfile = document.querySelector("#refreshProfile");
 const refreshTaskHistory = document.querySelector("#refreshTaskHistory");
+const authForm = document.querySelector("#authForm");
+const authUsername = document.querySelector("#authUsername");
+const authPassword = document.querySelector("#authPassword");
+const authStatus = document.querySelector("#authStatus");
+const loginButton = document.querySelector("#loginButton");
+const registerButton = document.querySelector("#registerButton");
+const logoutButton = document.querySelector("#logoutButton");
 
 let selectedTemplate = document.querySelector(".template-card.is-active")?.dataset.template || "";
 let latestPayload = null;
@@ -92,10 +100,47 @@ function getClientId() {
 }
 
 function requestHeaders() {
-  return {
+  const headers = {
     "Content-Type": "application/json",
     "X-Client-Id": getClientId(),
   };
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) headers["X-Auth-Token"] = token;
+  return headers;
+}
+
+function isAuthenticated() {
+  return Boolean(localStorage.getItem(AUTH_TOKEN_KEY));
+}
+
+function applyAuthPayload(data) {
+  if (data.auth?.clientId) localStorage.setItem(CLIENT_ID_KEY, data.auth.clientId);
+  if (data.auth?.token) localStorage.setItem(AUTH_TOKEN_KEY, data.auth.token);
+  accountState = data.account || accountState;
+  renderAuthState();
+  updateAccessState();
+}
+
+function clearAuthState() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  accountState = null;
+  activeEntitlement = null;
+  pendingPayment = null;
+  renderAuthState();
+  updateAccessState();
+  renderProfileTasks([]);
+}
+
+function renderAuthState() {
+  const loggedIn = isAuthenticated() && accountState?.account;
+  authStatus.textContent = loggedIn
+    ? `已登录：${accountState.account.username || accountState.account.clientId}`
+    : "注册或登录后才能充值、生成和查看历史。";
+  logoutButton.hidden = !loggedIn;
+  loginButton.hidden = loggedIn;
+  registerButton.hidden = loggedIn;
+  authUsername.disabled = loggedIn;
+  authPassword.disabled = loggedIn;
 }
 
 function hasPlan(requiredPlanId) {
@@ -129,12 +174,13 @@ function setAccessBanner(banner, isAllowed, text) {
 }
 
 function updateAccessState() {
+  const loggedIn = isAuthenticated();
   const generationRequiredPlan = requiredPlanForGeneration();
   const replaceRequiredPlan = requiredPlanForReplacement();
   const canGenerateByPlan = hasPlan(generationRequiredPlan);
   const canReplaceByPlan = hasPlan(replaceRequiredPlan);
-  const canGenerate = canGenerateByPlan && hasCredits(generationRequiredPlan);
-  const canReplace = canReplaceByPlan && hasCredits(replaceRequiredPlan);
+  const canGenerate = loggedIn && canGenerateByPlan && hasCredits(generationRequiredPlan);
+  const canReplace = loggedIn && canReplaceByPlan && hasCredits(replaceRequiredPlan);
 
   form.querySelector(".submit-button").disabled = !canGenerate;
   exportPayload.disabled = !canGenerate;
@@ -146,7 +192,9 @@ function updateAccessState() {
     canGenerate,
     canGenerate
       ? `积分余额充足，本次将消耗 ${CREDIT_COSTS[generationRequiredPlan]} 积分。`
-      : canGenerateByPlan
+      : !loggedIn
+        ? "请先登录账号，再提交生成任务。"
+        : canGenerateByPlan
         ? `当前生成配置需要 ${CREDIT_COSTS[generationRequiredPlan]} 积分，余额不足。`
         : `当前生成配置需要开通${PLAN_LABELS[generationRequiredPlan]}后才能提交。`,
   );
@@ -155,13 +203,17 @@ function updateAccessState() {
     canReplace,
     canReplace
       ? `积分余额充足，一键换包将消耗 ${CREDIT_COSTS[replaceRequiredPlan]} 积分。`
-      : canReplaceByPlan
+      : !loggedIn
+        ? "请先登录账号，再使用一键换包。"
+        : canReplaceByPlan
         ? `一键换包需要 ${CREDIT_COSTS[replaceRequiredPlan]} 积分，余额不足。`
         : "一键换包需要开通主推套餐或精修交付。",
   );
 
   currentPlan.textContent = "按次扣积分";
-  if (pendingPayment) {
+  if (!loggedIn) {
+    paymentHint.textContent = "请先在个人主页注册或登录账号。";
+  } else if (pendingPayment) {
     paymentHint.textContent = `订单 ${pendingPayment.id} 待确认，支付后可获得 ${pendingPayment.creditPack.creditGrant} 积分。`;
   } else {
     paymentHint.textContent = "充值后按功能扣积分：基础 5，主推 9.9，精修 19.9。";
@@ -194,6 +246,15 @@ function updateAccessState() {
 function formatDateTime(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function reasonLabel(reason) {
@@ -230,8 +291,8 @@ function renderLedger(ledger) {
       return `
         <article class="ledger-item ${item.amountCredits < 0 ? "is-negative" : ""}">
           <div>
-            <span>${reasonLabel(item.reason)}</span>
-            <p>${formatDateTime(item.createdAt)}</p>
+            <span>${escapeHtml(reasonLabel(item.reason))}</span>
+            <p>${escapeHtml(formatDateTime(item.createdAt))}</p>
           </div>
           <strong>${amount}</strong>
         </article>
@@ -254,11 +315,11 @@ function renderProfileTasks(tasks = []) {
     .map(
       (task) => `
         <article class="task-card">
-          <img src="${imageForTask(task)}" alt="生成历史预览" />
+          <img src="${escapeHtml(imageForTask(task))}" alt="生成历史预览" />
           <div>
-            <span>${task.workflow === "model-bag-replacement" ? "一键换包" : "商品图生成"} / ${formatDateTime(task.createdAt)}</span>
-            <strong>${task.id}</strong>
-            <p>${task.prompt || "无 prompt"}</p>
+            <span>${task.workflow === "model-bag-replacement" ? "一键换包" : "商品图生成"} / ${escapeHtml(formatDateTime(task.createdAt))}</span>
+            <strong>${escapeHtml(task.id)}</strong>
+            <p>${escapeHtml(task.prompt || "无 prompt")}</p>
           </div>
         </article>
       `,
@@ -268,9 +329,7 @@ function renderProfileTasks(tasks = []) {
 
 async function loadProfileTasks() {
   const response = await fetch("/api/tasks?limit=30", {
-    headers: {
-      "X-Client-Id": getClientId(),
-    },
+    headers: requestHeaders(),
   });
   if (!response.ok) return;
   const data = await response.json();
@@ -389,7 +448,7 @@ function renderQualityChecklist(payload, response = null) {
     hasRetouch ? "交付等级包含人工精修复核，适合高还原度订单。" : "当前等级适合预览或商用精选，复杂 logo/五金不要过度承诺。",
   ];
 
-  qualityScore.textContent = response?.provider === "memory" ? `${grade} / 已暂存` : grade;
+  qualityScore.textContent = response?.provider === "postgresql" ? `${grade} / 已入库` : grade;
   qualityChecklist.innerHTML = checklist.map((item) => `<li>${item}</li>`).join("");
 }
 
@@ -530,10 +589,13 @@ async function requestBagReplacement(payload) {
 
 async function loadEntitlement() {
   const response = await fetch("/api/entitlement", {
-    headers: {
-      "X-Client-Id": getClientId(),
-    },
+    headers: requestHeaders(),
   });
+  if (response.status === 401) {
+    renderAuthState();
+    updateAccessState();
+    return;
+  }
   if (!response.ok) return;
   const data = await response.json();
   activeEntitlement = data.entitlement;
@@ -543,13 +605,42 @@ async function loadEntitlement() {
 
 async function loadAccount() {
   const response = await fetch("/api/account", {
-    headers: {
-      "X-Client-Id": getClientId(),
-    },
+    headers: requestHeaders(),
   });
+  if (response.status === 401) {
+    clearAuthState();
+    return;
+  }
   if (!response.ok) return;
   accountState = await response.json();
+  renderAuthState();
   updateAccessState();
+}
+
+async function submitAuth(mode) {
+  const username = authUsername.value.trim();
+  const password = authPassword.value;
+  const response = await fetch(`/api/auth/${mode}`, {
+    method: "POST",
+    headers: requestHeaders(),
+    body: JSON.stringify({ username, password }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `${mode === "register" ? "注册" : "登录"}失败：${response.status}`);
+  }
+  applyAuthPayload(data);
+  authPassword.value = "";
+  await loadEntitlement();
+  await loadProfileTasks();
+}
+
+async function logout() {
+  await fetch("/api/auth/logout", {
+    method: "POST",
+    headers: requestHeaders(),
+  }).catch(() => {});
+  clearAuthState();
 }
 
 async function applyReferralCode(inviteCodeValue) {
@@ -685,6 +776,11 @@ form.addEventListener("change", () => {
 
 rechargeButtons.forEach((button) => {
   button.addEventListener("click", async () => {
+    if (!isAuthenticated()) {
+      paymentHint.textContent = "请先在个人主页登录或注册后再充值。";
+      window.location.hash = "profile";
+      return;
+    }
     const packId = button.dataset.packId;
     button.disabled = true;
     paymentHint.textContent = "正在创建充值订单。";
@@ -704,6 +800,10 @@ rechargeButtons.forEach((button) => {
 });
 
 confirmPayment.addEventListener("click", async () => {
+  if (!isAuthenticated()) {
+    paymentHint.textContent = "请先登录后再确认支付。";
+    return;
+  }
   confirmPayment.disabled = true;
   paymentHint.textContent = "正在确认支付。";
 
@@ -730,7 +830,45 @@ refreshProfile.addEventListener("click", async () => {
 
 refreshTaskHistory.addEventListener("click", loadProfileTasks);
 
+authForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  loginButton.disabled = true;
+  registerButton.disabled = true;
+  authStatus.textContent = "正在登录。";
+  try {
+    await submitAuth("login");
+    authStatus.textContent = `已登录：${accountState.account.username}`;
+  } catch (error) {
+    authStatus.textContent = error.message;
+  } finally {
+    loginButton.disabled = false;
+    registerButton.disabled = false;
+  }
+});
+
+registerButton.addEventListener("click", async () => {
+  loginButton.disabled = true;
+  registerButton.disabled = true;
+  authStatus.textContent = "正在注册。";
+  try {
+    await submitAuth("register");
+    authStatus.textContent = `注册成功：${accountState.account.username}`;
+  } catch (error) {
+    authStatus.textContent = error.message;
+  } finally {
+    loginButton.disabled = false;
+    registerButton.disabled = false;
+  }
+});
+
+logoutButton.addEventListener("click", logout);
+
 applyReferral.addEventListener("click", async () => {
+  if (!isAuthenticated()) {
+    paymentHint.textContent = "请先登录后再绑定邀请码。";
+    window.location.hash = "profile";
+    return;
+  }
   const value = referralCode.value.trim();
   if (!value) {
     paymentHint.textContent = "请输入邀请码。";
@@ -814,6 +952,13 @@ form.addEventListener("submit", async (event) => {
 
   const payload = buildPromptPayload();
   const requiredPlan = requiredPlanForGeneration();
+  if (!isAuthenticated()) {
+    statusPill.textContent = "未登录";
+    paymentHint.textContent = "请先在个人主页登录或注册账号。";
+    window.location.hash = "profile";
+    updateAccessState();
+    return;
+  }
   if (!hasPlan(requiredPlan)) {
     statusPill.textContent = "未支付";
     paymentHint.textContent = `当前生成配置需要先开通${PLAN_LABELS[requiredPlan]}。`;
@@ -871,6 +1016,13 @@ replaceForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const payload = buildReplacePayload();
+  if (!isAuthenticated()) {
+    replaceStatus.textContent = "未登录";
+    paymentHint.textContent = "请先在个人主页登录或注册账号。";
+    window.location.hash = "profile";
+    updateAccessState();
+    return;
+  }
   if (!hasPlan(requiredPlanForReplacement())) {
     replaceStatus.textContent = "未支付";
     paymentHint.textContent = "一键换包需要先开通主推套餐或精修交付。";
@@ -930,15 +1082,21 @@ updatePromptScore();
 renderQualityChecklist(buildPromptPayload());
 renderHistory();
 updateReplaceReadiness();
+renderAuthState();
 updateAccessState();
 syncPageFromHash();
-loadEntitlement();
-loadAccount().then(async () => {
+if (isAuthenticated()) {
+  loadEntitlement();
+  loadAccount().then(async () => {
+    const invitedBy = new URLSearchParams(window.location.search).get("ref");
+    if (invitedBy && !accountState?.account?.referredBy) {
+      referralCode.value = invitedBy;
+      await applyReferralCode(invitedBy);
+      paymentHint.textContent = `已绑定邀请关系，邀请人获得 ${accountState.credits.inviteReward} 积分。`;
+    }
+    await loadProfileTasks();
+  });
+} else {
   const invitedBy = new URLSearchParams(window.location.search).get("ref");
-  if (invitedBy && !accountState?.account?.referredBy) {
-    referralCode.value = invitedBy;
-    await applyReferralCode(invitedBy);
-    paymentHint.textContent = `已绑定邀请关系，邀请人获得 ${accountState.credits.inviteReward} 积分。`;
-  }
-  await loadProfileTasks();
-});
+  if (invitedBy) referralCode.value = invitedBy;
+}
