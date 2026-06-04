@@ -1,6 +1,6 @@
 # ImgBest AI 商品图定制站
 
-这是一个面向收费产品雏形的网站。页面围绕电商定制产品图生成，Node.js 后端提供 API、SQLite 任务库、上传图片落盘，并预留 ComfyUI 或其他生图服务接口。
+这是一个面向收费产品雏形的网站。页面围绕电商定制产品图生成，Node.js 后端提供 API、内存任务暂存、上传图片落盘，并预留 ComfyUI 或其他生图服务接口。
 
 ## 已内置的付费功能感
 
@@ -18,9 +18,8 @@
 - `index.html`: 页面结构和输入表单
 - `styles.css`: 响应式视觉样式
 - `app.js`: prompt 组装、API 调用、历史和导出
-- `server.js`: Node.js 后端，提供静态文件、API、SQLite 和上传存储
+- `server.js`: Node.js 后端，提供静态文件、API、内存账户/积分/任务暂存和上传存储
 - `package.json`: 启动和检查脚本
-- `data/imgbest.sqlite3`: 运行后自动创建的 SQLite 数据库
 - `uploads/`: 运行后自动创建的上传素材目录
 - `assets/hero-bag-model.png`: 项目内主视觉素材
 
@@ -49,14 +48,13 @@ PORT=3000 npm start
 - `GET /api/tasks/{id}`: 查看单个任务和上传素材
 - `GET /api/health`: 健康检查
 
-## 数据库
+## 存储
 
-后端会自动创建两张表：
+当前后端不依赖数据库，账户、积分、支付状态、任务历史和邀请记录都暂存在内存里。重启服务后这些数据会清空。
 
-- `tasks`: 记录任务 ID、workflow、prompt、payload、response、状态和时间
-- `assets`: 记录上传图片角色、文件路径、公开 URL、大小和 MIME 类型
+上传图片仍会保存到 `uploads/`，任务记录只在当前 Node 进程内保存文件引用。
 
-一键换包里的 base64 图片会被保存到 `uploads/`，数据库只保存文件引用。
+后续接入正式数据库时，建议把 `server.js` 里的 `store`、账户查询、积分流水、支付记录、任务和素材记录替换成数据库读写即可，API 路由可以继续沿用。
 
 ## 接入 ComfyUI
 
@@ -66,7 +64,7 @@ PORT=3000 npm start
 const COMFYUI_ENDPOINT = "/api/generate-image";
 ```
 
-建议不要让浏览器直接访问 ComfyUI。生产环境继续使用当前 Node 后端作为代理，在 `server.js` 的 `handleGenerateImage` 中把已保存的图片 URL 或磁盘路径传给 ComfyUI 工作流，再把真实生成图 URL 写回 `response_json`。
+建议不要让浏览器直接访问 ComfyUI。生产环境继续使用当前 Node 后端作为代理，在 `server.js` 的 `handleGenerateImage` 中把已保存的图片 URL 或磁盘路径传给 ComfyUI 工作流，再把真实生成图 URL 写回任务记录。
 
 接口建议返回：
 

@@ -13,16 +13,18 @@
         <span>ImgBest</span>
       </a>
       <nav class="nav" aria-label="主导航">
+        <a href="#home">首页</a>
         <a href="#packages">服务套餐</a>
+        <a href="#recharge">充值</a>
         <a href="#studio">定制生成</a>
         <a href="#replace">一键换包</a>
         <a href="#quality">交付质检</a>
+        <a class="nav-profile" href="#profile">个人主页</a>
       </nav>
-      <button class="ghost-button" type="button">导入商品</button>
     </header>
 
     <main>
-      <section class="hero" aria-labelledby="hero-title">
+      <section class="hero page is-active" id="home" aria-labelledby="hero-title">
         <div class="hero-media" aria-hidden="true">
           <img src="./assets/hero-bag-model.png" alt="" />
           <div class="hero-scrim"></div>
@@ -54,7 +56,7 @@
         </div>
       </section>
 
-      <section class="packages" id="packages" aria-labelledby="packages-title">
+      <section class="packages page" id="packages" aria-labelledby="packages-title">
         <div class="section-heading split-heading">
           <div>
             <p class="eyebrow">Service Packages</p>
@@ -65,43 +67,165 @@
           </p>
         </div>
         <div class="package-grid">
-          <article class="package-card">
+          <article class="package-card" data-plan-card="basic">
             <span>基础试单</span>
-            <h3>99 元</h3>
+            <h3>5 积分/次</h3>
             <p>生成 30 张包包 AI 场景图，精选 3 张做基础修正，适合白底图转小红书风格。</p>
             <ul>
               <li>商品图批量生成</li>
               <li>基础清晰度放大</li>
               <li>不承诺复杂 logo 还原</li>
             </ul>
+            <a class="plan-button" href="#recharge">去充值</a>
           </article>
-          <article class="package-card is-featured">
+          <article class="package-card is-featured" data-plan-card="pro">
             <span>主推套餐</span>
-            <h3>199 元</h3>
+            <h3>9.9 积分/次</h3>
             <p>生成 20 张 AI 模特拿包图，精修 3 张，支持 2 次修改，适合淘宝、小红书、拼多多上架。</p>
             <ul>
               <li>模特持包自然度检查</li>
               <li>包型、颜色、材质一致性锁定</li>
               <li>渠道尺寸裁切建议</li>
             </ul>
+            <a class="plan-button" href="#recharge">去充值</a>
           </article>
-          <article class="package-card">
+          <article class="package-card" data-plan-card="premium">
             <span>精修交付</span>
-            <h3>299 元+</h3>
+            <h3>19.9 积分/次</h3>
             <p>生成 30 张 AI 模特图，精修 5 张，支持 3 次修改，复杂五金、手部和包边交给人工复核。</p>
             <ul>
               <li>人工质检清单</li>
               <li>详情页/广告图组合</li>
               <li>复杂图可外包精修</li>
             </ul>
+            <a class="plan-button" href="#recharge">去充值</a>
           </article>
         </div>
       </section>
 
-      <section class="studio" id="studio" aria-labelledby="studio-title">
+      <section class="recharge page" id="recharge" aria-labelledby="recharge-title">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">Credit Recharge</p>
+            <h2 id="recharge-title">充值积分</h2>
+          </div>
+          <p>1 元 = 1 积分。大额充值通常赠送 5% 到 20%，超过 20% 会明显压缩利润，适合只给大客户或活动限时使用。</p>
+        </div>
+        <div class="payment-panel" aria-live="polite">
+          <div>
+            <span>当前方案</span>
+            <strong id="currentPlan">按次扣积分</strong>
+            <p id="paymentHint">充值后按功能扣积分：基础 5，主推 9.9，精修 19.9。</p>
+          </div>
+          <div class="credit-balance">
+            <span>积分余额</span>
+            <strong id="creditBalance">0</strong>
+            <p id="creditHint">1 元 = 1 积分，邀请新人奖励 5 积分。</p>
+          </div>
+          <div class="payment-actions">
+            <button class="export-button" id="refreshEntitlement" type="button">刷新状态</button>
+            <button class="submit-button" id="confirmPayment" type="button" hidden>确认已支付</button>
+          </div>
+        </div>
+        <div class="recharge-grid">
+          <article class="recharge-card">
+            <span>轻量</span>
+            <h3>100 积分</h3>
+            <p>充值 100 元，无赠送，适合试用。</p>
+            <button class="plan-button" type="button" data-pack-id="p100">充值 100 积分</button>
+          </article>
+          <article class="recharge-card">
+            <span>常用</span>
+            <h3>315 积分</h3>
+            <p>充值 300 元，赠送 5%。</p>
+            <button class="plan-button" type="button" data-pack-id="p300">充值 315 积分</button>
+          </article>
+          <article class="recharge-card is-featured">
+            <span>商家</span>
+            <h3>550 积分</h3>
+            <p>充值 500 元，赠送 10%。</p>
+            <button class="plan-button" type="button" data-pack-id="p500">充值 550 积分</button>
+          </article>
+          <article class="recharge-card">
+            <span>团队</span>
+            <h3>1150 积分</h3>
+            <p>充值 1000 元，赠送 15%。</p>
+            <button class="plan-button" type="button" data-pack-id="p1000">充值 1150 积分</button>
+          </article>
+          <article class="recharge-card">
+            <span>大客户</span>
+            <h3>2400 积分</h3>
+            <p>充值 2000 元，赠送 20%。</p>
+            <button class="plan-button" type="button" data-pack-id="p2000">充值 2400 积分</button>
+          </article>
+        </div>
+        <div class="invite-panel">
+          <div>
+            <span>邀请链接</span>
+            <strong id="inviteCode">-</strong>
+            <p id="inviteLink">加载中</p>
+          </div>
+          <div class="invite-actions">
+            <input id="referralCode" type="text" placeholder="输入邀请码" />
+            <button class="export-button" id="applyReferral" type="button">绑定邀请</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="profile page" id="profile" aria-labelledby="profile-title">
+        <div class="section-heading split-heading profile-heading">
+          <div>
+            <p class="eyebrow">Account Center</p>
+            <h2 id="profile-title">个人主页</h2>
+          </div>
+          <p>查看账户积分、邀请信息、积分流水，以及当前账号生成过的图片任务。</p>
+        </div>
+        <div class="profile-grid">
+          <article class="profile-card profile-balance-card">
+            <span>积分余额</span>
+            <strong id="profileCreditBalance">0</strong>
+            <p id="profileCreditMeta">基础 5 / 主推 9.9 / 精修 19.9 积分每次。</p>
+          </article>
+          <article class="profile-card profile-invite-card">
+            <span>我的邀请码</span>
+            <strong id="profileInviteCode">-</strong>
+            <p id="profileInviteLink">加载中</p>
+          </article>
+          <article class="profile-card">
+            <span>账户编号</span>
+            <strong id="profileClientId">-</strong>
+            <p>本地浏览器账户，用于查询当前设备的生成记录。</p>
+          </article>
+        </div>
+        <div class="profile-layout">
+          <section class="profile-panel" aria-labelledby="credit-ledger-title">
+            <div class="mini-heading">
+              <span id="credit-ledger-title">积分流水</span>
+              <button id="refreshProfile" type="button">刷新</button>
+            </div>
+            <div class="ledger-list" id="ledgerList">
+              <p class="empty-state">暂无积分流水。</p>
+            </div>
+          </section>
+          <section class="profile-panel" aria-labelledby="task-history-title">
+            <div class="mini-heading">
+              <span id="task-history-title">生成历史</span>
+              <button id="refreshTaskHistory" type="button">刷新</button>
+            </div>
+            <div class="task-gallery" id="profileTaskHistory">
+              <p class="empty-state">暂无生成历史。</p>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="studio page" id="studio" aria-labelledby="studio-title">
         <div class="section-heading">
           <p class="eyebrow">Custom Studio</p>
           <h2 id="studio-title">付费版生成工作台</h2>
+        </div>
+        <div class="access-banner" id="generationAccess">
+          未支付套餐时不能提交生成任务。基础试单可用基础预览；主推套餐可用商用精选；精修交付可用人工精修和精修大片。
         </div>
 
         <div class="workspace">
@@ -295,10 +419,13 @@
         </div>
       </section>
 
-      <section class="replace" id="replace" aria-labelledby="replace-title">
+      <section class="replace page" id="replace" aria-labelledby="replace-title">
         <div class="section-heading">
           <p class="eyebrow">AI Replacement</p>
           <h2 id="replace-title">一键替换模特手中的包</h2>
+        </div>
+        <div class="access-banner" id="replaceAccess">
+          一键换包需要开通主推套餐或精修交付。
         </div>
 
         <div class="replace-workspace">
@@ -398,7 +525,7 @@
         </div>
       </section>
 
-      <section class="quality" id="quality" aria-labelledby="quality-title">
+      <section class="quality page" id="quality" aria-labelledby="quality-title">
         <div class="section-heading split-heading">
           <div>
             <p class="eyebrow">Delivery Guardrails</p>

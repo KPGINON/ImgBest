@@ -85,7 +85,9 @@ a {
 }
 
 .nav {
+  flex: 1;
   gap: 24px;
+  justify-content: flex-start;
   color: var(--muted);
   font-size: 14px;
 }
@@ -94,14 +96,30 @@ a {
   color: var(--ink);
 }
 
-.ghost-button,
+.nav a.is-active {
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
+.nav-profile {
+  margin-left: auto;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(31, 111, 104, 0.26);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: var(--accent-strong);
+  background: rgba(31, 111, 104, 0.08);
+  font-weight: 800;
+}
+
 .secondary-button {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.7);
   color: var(--ink);
 }
 
-.ghost-button,
 .primary-button,
 .secondary-button,
 .submit-button {
@@ -109,6 +127,10 @@ a {
   border-radius: 8px;
   padding: 0 18px;
   cursor: pointer;
+}
+
+.page:not(.is-active) {
+  display: none;
 }
 
 .hero {
@@ -230,6 +252,8 @@ a {
 }
 
 .packages,
+.recharge,
+.profile,
 .studio,
 .replace,
 .quality {
@@ -261,6 +285,8 @@ a {
 }
 
 .package-grid,
+.recharge-grid,
+.profile-grid,
 .quality-grid {
   width: min(1120px, 100%);
   margin: 0 auto;
@@ -270,6 +296,8 @@ a {
 }
 
 .package-card,
+.recharge-card,
+.profile-card,
 .quality-grid article {
   min-height: 252px;
   padding: 22px;
@@ -284,20 +312,30 @@ a {
   background: linear-gradient(180deg, rgba(31, 111, 104, 0.09), #fff 42%);
 }
 
+.recharge-card.is-featured {
+  border-color: rgba(31, 111, 104, 0.44);
+  background: linear-gradient(180deg, rgba(31, 111, 104, 0.09), #fff 42%);
+}
+
 .package-card span,
+.recharge-card span,
+.profile-card span,
 .quality-grid span {
   color: var(--rose);
   font-size: 13px;
   font-weight: 850;
 }
 
-.package-card h3 {
+.package-card h3,
+.recharge-card h3 {
   margin: 18px 0 8px;
   color: var(--accent-strong);
   font-size: 38px;
 }
 
 .package-card p,
+.recharge-card p,
+.profile-card p,
 .quality-grid p {
   margin: 0;
   color: var(--muted);
@@ -335,6 +373,128 @@ a {
   height: 7px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+.package-card.is-owned {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 111, 104, 0.12), 0 12px 36px rgba(32, 28, 23, 0.08);
+}
+
+.plan-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.plan-button:hover {
+  background: var(--accent-strong);
+}
+
+.plan-button[disabled],
+.submit-button[disabled],
+.export-button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.payment-panel,
+.invite-panel,
+.access-banner {
+  width: min(1120px, 100%);
+  margin: 14px auto 0;
+  border: 1px solid rgba(31, 111, 104, 0.26);
+  border-radius: 8px;
+  background: rgba(31, 111, 104, 0.08);
+}
+
+.payment-panel,
+.invite-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+}
+
+.payment-panel span,
+.invite-panel span,
+.access-banner {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.payment-panel strong,
+.invite-panel strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--accent-strong);
+  font-size: 22px;
+}
+
+.payment-panel p,
+.invite-panel p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.credit-balance {
+  min-width: 148px;
+}
+
+.invite-panel {
+  background: #fff;
+}
+
+.payment-actions,
+.invite-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.invite-actions input {
+  min-height: 48px;
+  width: min(230px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #fbfaf7;
+  outline: none;
+}
+
+.invite-actions input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 111, 104, 0.14);
+}
+
+.access-banner {
+  padding: 12px 14px;
+}
+
+.access-banner.is-allowed {
+  border-color: rgba(31, 111, 104, 0.32);
+  color: var(--accent-strong);
+  background: rgba(31, 111, 104, 0.1);
+}
+
+.access-banner.is-blocked {
+  border-color: rgba(164, 63, 82, 0.28);
+  color: var(--rose);
+  background: rgba(164, 63, 82, 0.08);
 }
 
 .workspace {
@@ -868,6 +1028,139 @@ textarea:focus {
   background: #fbfaf7;
 }
 
+.profile-heading {
+  padding: 22px;
+  border: 1px solid rgba(31, 111, 104, 0.16);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(31, 111, 104, 0.1), rgba(255, 255, 255, 0.72));
+}
+
+.profile-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 210px;
+}
+
+.profile-card::after {
+  content: "";
+  position: absolute;
+  right: -34px;
+  top: -34px;
+  width: 120px;
+  height: 120px;
+  border: 1px solid rgba(31, 111, 104, 0.14);
+  border-radius: 50%;
+}
+
+.profile-balance-card {
+  color: #fff;
+  border-color: rgba(13, 79, 73, 0.55);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+}
+
+.profile-balance-card span,
+.profile-balance-card p,
+.profile-balance-card strong {
+  color: #fff;
+}
+
+.profile-invite-card {
+  border-color: rgba(180, 137, 66, 0.28);
+  background: linear-gradient(135deg, rgba(180, 137, 66, 0.12), #fff 58%);
+}
+
+.profile-card strong {
+  display: block;
+  margin: 18px 0 8px;
+  color: var(--accent-strong);
+  font-size: 30px;
+  word-break: break-all;
+}
+
+.profile-layout {
+  width: min(1120px, 100%);
+  margin: 16px auto 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.7fr) minmax(420px, 1.3fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.profile-panel {
+  min-height: 360px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.ledger-list,
+.task-gallery {
+  display: grid;
+  gap: 10px;
+}
+
+.ledger-item,
+.task-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ledger-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.ledger-item strong {
+  color: var(--accent-strong);
+}
+
+.ledger-item.is-negative strong {
+  color: var(--rose);
+}
+
+.ledger-item span,
+.task-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ledger-item p,
+.task-card p {
+  margin: 6px 0 0;
+  color: #2f2c28;
+  line-height: 1.55;
+}
+
+.task-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.task-card img {
+  width: 104px;
+  height: 104px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #ede8df;
+}
+
+.task-card strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  word-break: break-all;
+}
+
 .quality-grid h3 {
   margin: 34px 0 8px;
   font-size: 21px;
@@ -914,10 +1207,30 @@ textarea:focus {
 
   .workspace,
   .replace-workspace,
+  .profile-layout,
   .package-grid,
+  .recharge-grid,
+  .profile-grid,
   .quality-grid,
   .split-heading {
     grid-template-columns: 1fr;
+  }
+
+  .payment-panel,
+  .invite-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .payment-actions,
+  .invite-actions {
+    width: 100%;
+  }
+
+  .payment-actions button,
+  .invite-actions button,
+  .invite-actions input {
+    flex: 1;
   }
 
   .field-row,
@@ -932,15 +1245,20 @@ textarea:focus {
   .upload-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .task-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .task-card img {
+    width: 76px;
+    height: 76px;
+  }
 }
 
 @media (max-width: 520px) {
   .topbar {
     padding: 12px 14px;
-  }
-
-  .ghost-button {
-    display: none;
   }
 
   .hero h1 {
@@ -950,6 +1268,8 @@ textarea:focus {
   .studio,
   .replace,
   .packages,
+  .recharge,
+  .profile,
   .quality {
     padding-left: 14px;
     padding-right: 14px;
@@ -971,5 +1291,13 @@ textarea:focus {
 
   .model-upload {
     grid-column: auto;
+  }
+
+  .profile-card {
+    min-height: 176px;
+  }
+
+  .profile-card strong {
+    font-size: 24px;
   }
 }

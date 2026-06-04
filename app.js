@@ -1,6 +1,22 @@
 const COMFYUI_ENDPOINT = "/api/generate-image";
 const MOCK_IMAGE_URL = "./assets/hero-bag-model.png";
 const STORAGE_KEY = "imgbest-generation-history";
+const CLIENT_ID_KEY = "imgbest-client-id";
+const PLAN_RANK = {
+  basic: 1,
+  pro: 2,
+  premium: 3,
+};
+const PLAN_LABELS = {
+  basic: "基础试单",
+  pro: "主推套餐",
+  premium: "精修交付",
+};
+const CREDIT_COSTS = {
+  basic: 5,
+  pro: 9.9,
+  premium: 19.9,
+};
 
 const form = document.querySelector("#generationForm");
 const statusPill = document.querySelector("#statusPill");
@@ -26,10 +42,38 @@ const replaceReadiness = document.querySelector("#replaceReadiness");
 const exportReplacePayload = document.querySelector("#exportReplacePayload");
 const qualityScore = document.querySelector("#qualityScore");
 const qualityChecklist = document.querySelector("#qualityChecklist");
+const pageLinks = document.querySelectorAll(".nav a, .hero-actions a");
+const pages = document.querySelectorAll(".page");
+const planButtons = document.querySelectorAll("[data-plan-id]");
+const rechargeButtons = document.querySelectorAll("[data-pack-id]");
+const currentPlan = document.querySelector("#currentPlan");
+const paymentHint = document.querySelector("#paymentHint");
+const refreshEntitlement = document.querySelector("#refreshEntitlement");
+const confirmPayment = document.querySelector("#confirmPayment");
+const generationAccess = document.querySelector("#generationAccess");
+const replaceAccess = document.querySelector("#replaceAccess");
+const creditBalance = document.querySelector("#creditBalance");
+const creditHint = document.querySelector("#creditHint");
+const inviteCode = document.querySelector("#inviteCode");
+const inviteLink = document.querySelector("#inviteLink");
+const referralCode = document.querySelector("#referralCode");
+const applyReferral = document.querySelector("#applyReferral");
+const profileCreditBalance = document.querySelector("#profileCreditBalance");
+const profileCreditMeta = document.querySelector("#profileCreditMeta");
+const profileInviteCode = document.querySelector("#profileInviteCode");
+const profileInviteLink = document.querySelector("#profileInviteLink");
+const profileClientId = document.querySelector("#profileClientId");
+const ledgerList = document.querySelector("#ledgerList");
+const profileTaskHistory = document.querySelector("#profileTaskHistory");
+const refreshProfile = document.querySelector("#refreshProfile");
+const refreshTaskHistory = document.querySelector("#refreshTaskHistory");
 
 let selectedTemplate = document.querySelector(".template-card.is-active")?.dataset.template || "";
 let latestPayload = null;
 let latestReplacePayload = null;
+let activeEntitlement = null;
+let pendingPayment = null;
+let accountState = null;
 const replacementAssets = {
   bagFront: null,
   bagLeft45: null,
@@ -37,6 +81,214 @@ const replacementAssets = {
   bagTop: null,
   modelImage: null,
 };
+
+function getClientId() {
+  let clientId = localStorage.getItem(CLIENT_ID_KEY);
+  if (!clientId) {
+    clientId = `client_${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
+    localStorage.setItem(CLIENT_ID_KEY, clientId);
+  }
+  return clientId;
+}
+
+function requestHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "X-Client-Id": getClientId(),
+  };
+}
+
+function hasPlan(requiredPlanId) {
+  return true;
+}
+
+function creditBalanceValue() {
+  return accountState?.credits?.balance || 0;
+}
+
+function hasCredits(requiredPlanId) {
+  return creditBalanceValue() >= CREDIT_COSTS[requiredPlanId];
+}
+
+function requiredPlanForGeneration() {
+  const deliveryTier = document.querySelector("#deliveryTier").value;
+  const generationMode = document.querySelector("#generationMode").value;
+  if (deliveryTier.startsWith("manual retouch review") || generationMode === "premium") return "premium";
+  if (deliveryTier.includes("commercial-ready")) return "pro";
+  return "basic";
+}
+
+function requiredPlanForReplacement() {
+  return "pro";
+}
+
+function setAccessBanner(banner, isAllowed, text) {
+  banner.textContent = text;
+  banner.classList.toggle("is-allowed", isAllowed);
+  banner.classList.toggle("is-blocked", !isAllowed);
+}
+
+function updateAccessState() {
+  const generationRequiredPlan = requiredPlanForGeneration();
+  const replaceRequiredPlan = requiredPlanForReplacement();
+  const canGenerateByPlan = hasPlan(generationRequiredPlan);
+  const canReplaceByPlan = hasPlan(replaceRequiredPlan);
+  const canGenerate = canGenerateByPlan && hasCredits(generationRequiredPlan);
+  const canReplace = canReplaceByPlan && hasCredits(replaceRequiredPlan);
+
+  form.querySelector(".submit-button").disabled = !canGenerate;
+  exportPayload.disabled = !canGenerate;
+  replaceForm.querySelector(".submit-button").disabled = !canReplace;
+  exportReplacePayload.disabled = !canReplace;
+
+  setAccessBanner(
+    generationAccess,
+    canGenerate,
+    canGenerate
+      ? `积分余额充足，本次将消耗 ${CREDIT_COSTS[generationRequiredPlan]} 积分。`
+      : canGenerateByPlan
+        ? `当前生成配置需要 ${CREDIT_COSTS[generationRequiredPlan]} 积分，余额不足。`
+        : `当前生成配置需要开通${PLAN_LABELS[generationRequiredPlan]}后才能提交。`,
+  );
+  setAccessBanner(
+    replaceAccess,
+    canReplace,
+    canReplace
+      ? `积分余额充足，一键换包将消耗 ${CREDIT_COSTS[replaceRequiredPlan]} 积分。`
+      : canReplaceByPlan
+        ? `一键换包需要 ${CREDIT_COSTS[replaceRequiredPlan]} 积分，余额不足。`
+        : "一键换包需要开通主推套餐或精修交付。",
+  );
+
+  currentPlan.textContent = "按次扣积分";
+  if (pendingPayment) {
+    paymentHint.textContent = `订单 ${pendingPayment.id} 待确认，支付后可获得 ${pendingPayment.creditPack.creditGrant} 积分。`;
+  } else {
+    paymentHint.textContent = "充值后按功能扣积分：基础 5，主推 9.9，精修 19.9。";
+  }
+  creditBalance.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
+  creditHint.textContent = `基础 ${CREDIT_COSTS.basic} 积分 / 主推 ${CREDIT_COSTS.pro} 积分 / 精修 ${CREDIT_COSTS.premium} 积分。`;
+
+  if (accountState?.account) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("ref", accountState.account.inviteCode);
+    inviteCode.textContent = accountState.account.inviteCode;
+    inviteLink.textContent = url.toString();
+    renderProfileSummary(url.toString());
+  }
+
+  document.querySelectorAll("[data-plan-card]").forEach((card) => {
+    const planId = card.dataset.planCard;
+    const isOwned = activeEntitlement?.planId === planId;
+    card.classList.toggle("is-owned", isOwned);
+  });
+
+  planButtons.forEach((button) => {
+    const planId = button.dataset.planId;
+    const isCurrent = activeEntitlement?.planId === planId;
+    button.disabled = isCurrent;
+    button.textContent = isCurrent ? "当前已开通" : `开通${PLAN_LABELS[planId]}`;
+  });
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
+
+function reasonLabel(reason) {
+  const labels = {
+    credit_recharge: "充值到账",
+    payment_credit: "套餐充值",
+    invite_reward: "邀请奖励",
+    basic_generation: "基础生成",
+    pro_generation: "主推生成",
+    premium_generation: "精修生成",
+  };
+  return labels[reason] || reason;
+}
+
+function renderProfileSummary(inviteUrl = "") {
+  if (!accountState?.account) return;
+  profileCreditBalance.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
+  profileCreditMeta.textContent = `基础 ${CREDIT_COSTS.basic} / 主推 ${CREDIT_COSTS.pro} / 精修 ${CREDIT_COSTS.premium} 积分每次。`;
+  profileInviteCode.textContent = accountState.account.inviteCode;
+  profileInviteLink.textContent = inviteUrl || inviteLink.textContent || "-";
+  profileClientId.textContent = getClientId();
+  renderLedger(accountState.ledger || []);
+}
+
+function renderLedger(ledger) {
+  if (!ledger.length) {
+    ledgerList.innerHTML = '<p class="empty-state">暂无积分流水。</p>';
+    return;
+  }
+
+  ledgerList.innerHTML = ledger
+    .map((item) => {
+      const amount = item.amountCredits > 0 ? `+${item.amountCredits}` : item.amountCredits;
+      return `
+        <article class="ledger-item ${item.amountCredits < 0 ? "is-negative" : ""}">
+          <div>
+            <span>${reasonLabel(item.reason)}</span>
+            <p>${formatDateTime(item.createdAt)}</p>
+          </div>
+          <strong>${amount}</strong>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function imageForTask(task) {
+  return task.response?.imageUrl || task.response?.variants?.[0]?.imageUrl || MOCK_IMAGE_URL;
+}
+
+function renderProfileTasks(tasks = []) {
+  if (!tasks.length) {
+    profileTaskHistory.innerHTML = '<p class="empty-state">暂无生成历史。</p>';
+    return;
+  }
+
+  profileTaskHistory.innerHTML = tasks
+    .map(
+      (task) => `
+        <article class="task-card">
+          <img src="${imageForTask(task)}" alt="生成历史预览" />
+          <div>
+            <span>${task.workflow === "model-bag-replacement" ? "一键换包" : "商品图生成"} / ${formatDateTime(task.createdAt)}</span>
+            <strong>${task.id}</strong>
+            <p>${task.prompt || "无 prompt"}</p>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+async function loadProfileTasks() {
+  const response = await fetch("/api/tasks?limit=30", {
+    headers: {
+      "X-Client-Id": getClientId(),
+    },
+  });
+  if (!response.ok) return;
+  const data = await response.json();
+  renderProfileTasks(data.tasks || []);
+}
+
+function showPage(pageId) {
+  const nextPageId = document.querySelector(`#${pageId}`) ? pageId : "home";
+  pages.forEach((page) => page.classList.toggle("is-active", page.id === nextPageId));
+  pageLinks.forEach((link) => {
+    const linkPageId = link.getAttribute("href")?.replace("#", "");
+    link.classList.toggle("is-active", linkPageId === nextPageId);
+  });
+}
+
+function syncPageFromHash() {
+  showPage(window.location.hash.replace("#", "") || "home");
+}
 
 function getSelectedModules() {
   return [...document.querySelectorAll(".checks input:checked")].map((item) => item.value);
@@ -124,7 +376,7 @@ function getCommercialGrade(payload) {
 
 function renderQualityChecklist(payload, response = null) {
   const grade = getCommercialGrade(payload);
-  const hasRetouch = payload.deliveryTier.includes("manual retouch");
+  const hasRetouch = payload.deliveryTier.startsWith("manual retouch review");
   const hasChannel = Boolean(payload.channelPreset);
   const checklist = [
     hasChannel ? "已写入渠道规格，生成后按主图/封面/广告裁切复核。" : "建议补充渠道规格，避免构图不可用。",
@@ -137,7 +389,7 @@ function renderQualityChecklist(payload, response = null) {
     hasRetouch ? "交付等级包含人工精修复核，适合高还原度订单。" : "当前等级适合预览或商用精选，复杂 logo/五金不要过度承诺。",
   ];
 
-  qualityScore.textContent = response?.provider === "node-sqlite" ? `${grade} / 已入库` : grade;
+  qualityScore.textContent = response?.provider === "memory" ? `${grade} / 已暂存` : grade;
   qualityChecklist.innerHTML = checklist.map((item) => `<li>${item}</li>`).join("");
 }
 
@@ -159,14 +411,13 @@ async function requestImageGeneration(payload) {
 
   const response = await fetch(COMFYUI_ENDPOINT, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: requestHeaders(),
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    throw new Error(`生成接口请求失败：${response.status}`);
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.error || `生成接口请求失败：${response.status}`);
   }
 
   return response.json();
@@ -178,6 +429,7 @@ function setBusy(isBusy) {
     statusPill.textContent = "生成中";
   }
   form.querySelector(".submit-button").disabled = isBusy;
+  if (!isBusy) updateAccessState();
 }
 
 function setReplaceBusy(isBusy) {
@@ -186,6 +438,7 @@ function setReplaceBusy(isBusy) {
     replaceStatus.textContent = "替换中";
   }
   replaceForm.querySelector(".submit-button").disabled = isBusy;
+  if (!isBusy) updateAccessState();
 }
 
 function getUploadedCount() {
@@ -263,17 +516,87 @@ async function requestBagReplacement(payload) {
 
   const response = await fetch(COMFYUI_ENDPOINT, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: requestHeaders(),
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    throw new Error(`换包接口请求失败：${response.status}`);
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.error || `换包接口请求失败：${response.status}`);
   }
 
   return response.json();
+}
+
+async function loadEntitlement() {
+  const response = await fetch("/api/entitlement", {
+    headers: {
+      "X-Client-Id": getClientId(),
+    },
+  });
+  if (!response.ok) return;
+  const data = await response.json();
+  activeEntitlement = data.entitlement;
+  accountState = data.account || accountState;
+  updateAccessState();
+}
+
+async function loadAccount() {
+  const response = await fetch("/api/account", {
+    headers: {
+      "X-Client-Id": getClientId(),
+    },
+  });
+  if (!response.ok) return;
+  accountState = await response.json();
+  updateAccessState();
+}
+
+async function applyReferralCode(inviteCodeValue) {
+  const response = await fetch("/api/referrals", {
+    method: "POST",
+    headers: requestHeaders(),
+    body: JSON.stringify({ inviteCode: inviteCodeValue }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `绑定邀请失败：${response.status}`);
+  }
+  accountState = data;
+  updateAccessState();
+}
+
+async function createPayment(packId) {
+  const response = await fetch("/api/payments", {
+    method: "POST",
+    headers: requestHeaders(),
+    body: JSON.stringify({ packId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `创建支付订单失败：${response.status}`);
+  }
+  return data.payment;
+}
+
+async function confirmPendingPayment() {
+  if (!pendingPayment) return;
+  const response = await fetch(`/api/payments/${pendingPayment.id}/confirm`, {
+    method: "POST",
+    headers: requestHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `确认支付失败：${response.status}`);
+  }
+
+  pendingPayment = null;
+  activeEntitlement = data.entitlement;
+  accountState = data.account || accountState;
+  await loadAccount();
+  confirmPayment.hidden = true;
+  paymentHint.textContent = "充值成功，积分已到账。";
+  updateAccessState();
 }
 
 function renderVariants(variants = []) {
@@ -357,9 +680,82 @@ customPromptInput.addEventListener("input", () => {
 form.addEventListener("change", () => {
   latestPayload = buildPromptPayload();
   renderQualityChecklist(latestPayload);
+  updateAccessState();
 });
 
+rechargeButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    const packId = button.dataset.packId;
+    button.disabled = true;
+    paymentHint.textContent = "正在创建充值订单。";
+
+    try {
+      pendingPayment = await createPayment(packId);
+      confirmPayment.hidden = false;
+      confirmPayment.textContent = `确认充值 ${pendingPayment.creditPack.creditGrant} 积分`;
+      paymentHint.textContent = `订单 ${pendingPayment.id} 已创建。当前为模拟支付，点击确认后到账 ${pendingPayment.creditPack.creditGrant} 积分。`;
+    } catch (error) {
+      paymentHint.textContent = error.message;
+    } finally {
+      button.disabled = false;
+      updateAccessState();
+    }
+  });
+});
+
+confirmPayment.addEventListener("click", async () => {
+  confirmPayment.disabled = true;
+  paymentHint.textContent = "正在确认支付。";
+
+  try {
+    await confirmPendingPayment();
+  } catch (error) {
+    paymentHint.textContent = error.message;
+  } finally {
+    confirmPayment.disabled = false;
+  }
+});
+
+refreshEntitlement.addEventListener("click", async () => {
+  paymentHint.textContent = "正在刷新支付状态。";
+  await loadEntitlement();
+  await loadAccount();
+  await loadProfileTasks();
+});
+
+refreshProfile.addEventListener("click", async () => {
+  await loadAccount();
+  await loadProfileTasks();
+});
+
+refreshTaskHistory.addEventListener("click", loadProfileTasks);
+
+applyReferral.addEventListener("click", async () => {
+  const value = referralCode.value.trim();
+  if (!value) {
+    paymentHint.textContent = "请输入邀请码。";
+    return;
+  }
+
+  applyReferral.disabled = true;
+  paymentHint.textContent = "正在绑定邀请关系。";
+  try {
+    await applyReferralCode(value);
+    paymentHint.textContent = `绑定完成。邀请奖励会发给邀请码所属账户，奖励 ${accountState.credits.inviteReward} 积分。`;
+  } catch (error) {
+    paymentHint.textContent = error.message;
+  } finally {
+    applyReferral.disabled = false;
+  }
+});
+
+window.addEventListener("hashchange", syncPageFromHash);
+
 exportPayload.addEventListener("click", () => {
+  if (!hasPlan(requiredPlanForGeneration())) {
+    paymentHint.textContent = `导出当前生成任务需要先开通${PLAN_LABELS[requiredPlanForGeneration()]}。`;
+    return;
+  }
   latestPayload = latestPayload || buildPromptPayload();
   const blob = new Blob([JSON.stringify(latestPayload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -371,6 +767,10 @@ exportPayload.addEventListener("click", () => {
 });
 
 exportReplacePayload.addEventListener("click", () => {
+  if (!hasPlan(requiredPlanForReplacement())) {
+    paymentHint.textContent = "导出换包任务需要先开通主推套餐或精修交付。";
+    return;
+  }
   latestReplacePayload = latestReplacePayload || buildReplacePayload();
   const blob = new Blob([JSON.stringify(latestReplacePayload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -413,6 +813,22 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const payload = buildPromptPayload();
+  const requiredPlan = requiredPlanForGeneration();
+  if (!hasPlan(requiredPlan)) {
+    statusPill.textContent = "未支付";
+    paymentHint.textContent = `当前生成配置需要先开通${PLAN_LABELS[requiredPlan]}。`;
+    document.querySelector("#packages").scrollIntoView({ behavior: "smooth", block: "start" });
+    updateAccessState();
+    return;
+  }
+  if (!hasCredits(requiredPlan)) {
+    statusPill.textContent = "积分不足";
+    paymentHint.textContent = `本次需要 ${CREDIT_COSTS[requiredPlan]} 积分，当前余额 ${creditBalanceValue()}。`;
+    document.querySelector("#packages").scrollIntoView({ behavior: "smooth", block: "start" });
+    updateAccessState();
+    return;
+  }
+
   latestPayload = payload;
   promptPreview.textContent = payload.prompt;
   payloadView.textContent = JSON.stringify({ request: payload }, null, 2);
@@ -420,6 +836,9 @@ form.addEventListener("submit", async (event) => {
 
   try {
     const response = await requestImageGeneration(payload);
+    if (response.credits) {
+      accountState = { ...(accountState || {}), credits: response.credits };
+    }
     resultImage.src = response.imageUrl || MOCK_IMAGE_URL;
     taskId.textContent = response.id || "-";
     statusPill.textContent = response.provider === "mock" ? "模拟结果" : "生成完成";
@@ -432,6 +851,7 @@ form.addEventListener("submit", async (event) => {
       mode: document.querySelector("#generationMode").selectedOptions[0].textContent,
     });
     updatePayloadView(payload, response);
+    await loadProfileTasks();
   } catch (error) {
     statusPill.textContent = "失败";
     payloadView.textContent = JSON.stringify(
@@ -451,6 +871,21 @@ replaceForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const payload = buildReplacePayload();
+  if (!hasPlan(requiredPlanForReplacement())) {
+    replaceStatus.textContent = "未支付";
+    paymentHint.textContent = "一键换包需要先开通主推套餐或精修交付。";
+    document.querySelector("#packages").scrollIntoView({ behavior: "smooth", block: "start" });
+    updateAccessState();
+    return;
+  }
+  if (!hasCredits(requiredPlanForReplacement())) {
+    replaceStatus.textContent = "积分不足";
+    paymentHint.textContent = `一键换包需要 ${CREDIT_COSTS.pro} 积分，当前余额 ${creditBalanceValue()}。`;
+    document.querySelector("#packages").scrollIntoView({ behavior: "smooth", block: "start" });
+    updateAccessState();
+    return;
+  }
+
   latestReplacePayload = payload;
   payloadView.textContent = JSON.stringify({ request: payload }, null, 2);
 
@@ -468,10 +903,14 @@ replaceForm.addEventListener("submit", async (event) => {
 
   try {
     const response = await requestBagReplacement(payload);
+    if (response.credits) {
+      accountState = { ...(accountState || {}), credits: response.credits };
+    }
     replaceResult.src = response.imageUrl || MOCK_IMAGE_URL;
     taskId.textContent = response.id || "-";
     replaceStatus.textContent = response.provider === "mock" ? "模拟结果" : "替换完成";
     updatePayloadView(payload, response);
+    await loadProfileTasks();
   } catch (error) {
     replaceStatus.textContent = "失败";
     payloadView.textContent = JSON.stringify(
@@ -491,3 +930,15 @@ updatePromptScore();
 renderQualityChecklist(buildPromptPayload());
 renderHistory();
 updateReplaceReadiness();
+updateAccessState();
+syncPageFromHash();
+loadEntitlement();
+loadAccount().then(async () => {
+  const invitedBy = new URLSearchParams(window.location.search).get("ref");
+  if (invitedBy && !accountState?.account?.referredBy) {
+    referralCode.value = invitedBy;
+    await applyReferralCode(invitedBy);
+    paymentHint.textContent = `已绑定邀请关系，邀请人获得 ${accountState.credits.inviteReward} 积分。`;
+  }
+  await loadProfileTasks();
+});

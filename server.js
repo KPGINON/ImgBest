@@ -1,17 +1,50 @@
 const { createServer } = require("node:http");
 const { readFile, stat, writeFile, mkdir } = require("node:fs/promises");
-const { existsSync } = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { URL } = require("node:url");
-const { DatabaseSync } = require("node:sqlite");
 
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
 const UPLOAD_DIR = path.join(ROOT, "uploads");
-const DB_PATH = path.join(DATA_DIR, "imgbest.sqlite3");
 const PORT = Number(process.env.PORT || 3000);
 const MAX_BODY_SIZE = 40 * 1024 * 1024;
+const CREDIT_SCALE = 10;
+const INVITE_REWARD_CREDITS = 5 * CREDIT_SCALE;
+const GENERATION_COSTS = {
+  basic: 5 * CREDIT_SCALE,
+  pro: 9.9 * CREDIT_SCALE,
+  premium: 19.9 * CREDIT_SCALE,
+};
+const CREDIT_PACKS = {
+  p100: { id: "p100", name: "轻量充值", amountCents: 10000, creditUnits: 100 * CREDIT_SCALE, bonusRate: 0 },
+  p300: { id: "p300", name: "常用充值", amountCents: 30000, creditUnits: 315 * CREDIT_SCALE, bonusRate: 0.05 },
+  p500: { id: "p500", name: "商家充值", amountCents: 50000, creditUnits: 550 * CREDIT_SCALE, bonusRate: 0.1 },
+  p1000: { id: "p1000", name: "团队充值", amountCents: 100000, creditUnits: 1150 * CREDIT_SCALE, bonusRate: 0.15 },
+  p2000: { id: "p2000", name: "大客户充值", amountCents: 200000, creditUnits: 2400 * CREDIT_SCALE, bonusRate: 0.2 },
+};
+const PLAN_CONFIGS = {
+  basic: {
+    id: "basic",
+    name: "基础试单",
+    amountCents: 9900,
+    rank: 1,
+    features: ["ecommerce-product-image"],
+  },
+  pro: {
+    id: "pro",
+    name: "主推套餐",
+    amountCents: 19900,
+    rank: 2,
+    features: ["ecommerce-product-image", "model-bag-replacement", "commercial-selected"],
+  },
+  premium: {
+    id: "premium",
+    name: "精修交付",
+    amountCents: 29900,
+    rank: 3,
+    features: ["ecommerce-product-image", "model-bag-replacement", "commercial-selected", "manual-retouch"],
+  },
+};
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -26,38 +59,17 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
 };
 
-let database;
+const store = {
+  accounts: new Map(),
+  entitlements: new Map(),
+  payments: new Map(),
+  tasks: new Map(),
+  assets: new Map(),
+  creditLedger: [],
+};
 
 async function ensureStorage() {
-  await mkdir(DATA_DIR, { recursive: true });
   await mkdir(UPLOAD_DIR, { recursive: true });
-
-  database = new DatabaseSync(DB_PATH);
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY,
-      workflow TEXT NOT NULL,
-      status TEXT NOT NULL,
-      prompt TEXT,
-      payload_json TEXT NOT NULL,
-      response_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS assets (
-      id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      original_name TEXT,
-      mime_type TEXT,
-      file_path TEXT NOT NULL,
-      public_url TEXT NOT NULL,
-      size_bytes INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY(task_id) REFERENCES tasks(id)
-    );
-  `);
 }
 
 function nowIso() {
@@ -71,13 +83,27 @@ function sendJson(response, statusCode, data) {
     "Content-Length": body.length,
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Client-Id",
   });
   response.end(body);
 }
 
 function sendError(response, statusCode, message) {
   sendJson(response, statusCode, { error: message });
+}
+
+function getClientId(request) {
+  const clientId = request.headers["x-client-id"];
+  return typeof clientId === "string" && clientId.trim() ? clientId.trim().slice(0, 120) : null;
+}
+
+function formatCredits(units) {
+  const value = units / CREDIT_SCALE;
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function makeInviteCode() {
+  return `IB${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`;
 }
 
 async function readJsonBody(request) {
@@ -143,7 +169,7 @@ async function saveEmbeddedImages(taskId, payload) {
     const diskPath = path.join(UPLOAD_DIR, filename);
     await writeFile(diskPath, parsed.buffer);
 
-    savedAssets.push({
+    const asset = {
       id: assetId,
       taskId,
       role,
@@ -152,7 +178,10 @@ async function saveEmbeddedImages(taskId, payload) {
       filePath: path.relative(ROOT, diskPath),
       publicUrl: `/uploads/${filename}`,
       sizeBytes: parsed.buffer.length,
-    });
+      createdAt: nowIso(),
+    };
+    store.assets.set(assetId, asset);
+    savedAssets.push(asset);
   }
 
   return savedAssets;
@@ -167,10 +196,10 @@ function makeStoredResponse(taskId, payload, assets) {
     return {
       id: taskId,
       status: "stored",
-      provider: "node-sqlite",
+      provider: "memory",
       imageUrl: publicAssetForRole(assets, "modelImage") || "/assets/hero-bag-model.png",
       assets,
-      message: "换包任务已写入数据库。接入 ComfyUI 后在此返回真实生成图。",
+      message: "换包任务已暂存到内存。接入数据库后可持久化保存。",
     };
   }
 
@@ -178,7 +207,7 @@ function makeStoredResponse(taskId, payload, assets) {
   return {
     id: taskId,
     status: "stored",
-    provider: "node-sqlite",
+    provider: "memory",
     imageUrl: "/assets/hero-bag-model.png",
     variants: variantPrompts.map((prompt, index) => ({
       id: `v${index + 1}`,
@@ -186,74 +215,395 @@ function makeStoredResponse(taskId, payload, assets) {
       prompt,
     })),
     assets,
-    message: "商品图任务已写入数据库。接入 ComfyUI 后在此返回真实生成图。",
+    message: "商品图任务已暂存到内存。接入数据库后可持久化保存。",
   };
 }
 
-function insertTask(taskId, payload, response, assets) {
+function taskToJson(task) {
+  return {
+    id: task.id,
+    clientId: task.clientId,
+    workflow: task.workflow,
+    status: task.status,
+    prompt: task.prompt,
+    response: task.response,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  };
+}
+
+function insertTask(taskId, payload, response, assets, creditCharge = null) {
   const timestamp = nowIso();
-  const insertTaskStmt = database.prepare(`
-    INSERT INTO tasks (id, workflow, status, prompt, payload_json, response_json, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const insertAssetStmt = database.prepare(`
-    INSERT INTO assets (id, task_id, role, original_name, mime_type, file_path, public_url, size_bytes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  const task = {
+    id: taskId,
+    clientId: creditCharge?.clientId || null,
+    workflow: payload.workflow || "unknown",
+    status: response.status || "stored",
+    prompt: payload.prompt || "",
+    payload,
+    response,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
 
-  database.exec("BEGIN");
-  try {
-    insertTaskStmt.run(
-      taskId,
-      payload.workflow || "unknown",
-      response.status || "stored",
-      payload.prompt || "",
-      JSON.stringify(payload),
-      JSON.stringify(response),
-      timestamp,
-      timestamp,
-    );
+  store.tasks.set(taskId, task);
+  for (const asset of assets) {
+    store.assets.set(asset.id, asset);
+  }
 
-    for (const asset of assets) {
-      insertAssetStmt.run(
-        asset.id,
-        taskId,
-        asset.role,
-        asset.originalName,
-        asset.mimeType,
-        asset.filePath,
-        asset.publicUrl,
-        asset.sizeBytes,
-        timestamp,
-      );
-    }
-
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
+  if (creditCharge) {
+    addCreditEntry(creditCharge.clientId, -creditCharge.amountUnits, creditCharge.reason, taskId);
   }
 }
 
-function taskRowToJson(row) {
+function publicPlan(plan) {
   return {
-    id: row.id,
-    workflow: row.workflow,
-    status: row.status,
-    prompt: row.prompt,
-    response: JSON.parse(row.response_json),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    id: plan.id,
+    name: plan.name,
+    amountCents: plan.amountCents,
+    priceLabel: `${Math.floor(plan.amountCents / 100)} 元`,
+    creditGrant: Number(formatCredits(plan.amountCents / 10)),
+    features: plan.features,
   };
+}
+
+function publicCreditPack(pack) {
+  return {
+    id: pack.id,
+    name: pack.name,
+    amountCents: pack.amountCents,
+    priceLabel: `${Math.floor(pack.amountCents / 100)} 元`,
+    creditGrant: Number(formatCredits(pack.creditUnits)),
+    bonusRate: pack.bonusRate,
+    bonusLabel: pack.bonusRate ? `赠送 ${Math.round(pack.bonusRate * 100)}%` : "无赠送",
+  };
+}
+
+function paymentToJson(payment) {
+  return {
+    id: payment.id,
+    clientId: payment.clientId,
+    planId: payment.planId,
+    amountCents: payment.amountCents,
+    status: payment.status,
+    createdAt: payment.createdAt,
+    paidAt: payment.paidAt,
+  };
+}
+
+function entitlementToJson(entitlement) {
+  if (!entitlement) return null;
+  const plan = PLAN_CONFIGS[entitlement.planId];
+  return {
+    clientId: entitlement.clientId,
+    planId: entitlement.planId,
+    planName: plan?.name || entitlement.planId,
+    rank: plan?.rank || 0,
+    features: plan?.features || [],
+    startsAt: entitlement.startsAt,
+    expiresAt: entitlement.expiresAt,
+    updatedAt: entitlement.updatedAt,
+  };
+}
+
+function getEntitlement(clientId) {
+  if (!clientId) return null;
+  return entitlementToJson(store.entitlements.get(clientId));
+}
+
+function accountToJson(account) {
+  if (!account) return null;
+  return {
+    clientId: account.clientId,
+    inviteCode: account.inviteCode,
+    referredBy: account.referredBy,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  };
+}
+
+function getAccount(clientId) {
+  return accountToJson(store.accounts.get(clientId));
+}
+
+function ensureAccount(clientId) {
+  if (!clientId) return null;
+  const existing = store.accounts.get(clientId);
+  if (existing) return accountToJson(existing);
+
+  const timestamp = nowIso();
+  let inviteCode = makeInviteCode();
+  while ([...store.accounts.values()].some((account) => account.inviteCode === inviteCode)) {
+    inviteCode = makeInviteCode();
+  }
+
+  const account = {
+    clientId,
+    inviteCode,
+    referredBy: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  store.accounts.set(clientId, account);
+  return accountToJson(account);
+}
+
+function getCreditBalanceUnits(clientId) {
+  if (!clientId) return 0;
+  return store.creditLedger
+    .filter((entry) => entry.clientId === clientId)
+    .reduce((total, entry) => total + entry.amountUnits, 0);
+}
+
+function addCreditEntry(clientId, amountUnits, reason, referenceId = null) {
+  ensureAccount(clientId);
+  store.creditLedger.push({
+    id: `credit_${randomUUID().replaceAll("-", "")}`,
+    clientId,
+    amountUnits: Math.round(amountUnits),
+    reason,
+    referenceId,
+    createdAt: nowIso(),
+  });
+}
+
+function getRecentCreditLedger(clientId, limit = 8) {
+  return store.creditLedger
+    .filter((entry) => entry.clientId === clientId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit)
+    .map((entry) => ({
+      id: entry.id,
+      amountUnits: entry.amountUnits,
+      amountCredits: Number(formatCredits(entry.amountUnits)),
+      reason: entry.reason,
+      referenceId: entry.referenceId,
+      createdAt: entry.createdAt,
+    }));
+}
+
+function accountSummary(clientId) {
+  const account = ensureAccount(clientId);
+  const balanceUnits = getCreditBalanceUnits(clientId);
+  return {
+    account,
+    credits: {
+      balanceUnits,
+      balance: Number(formatCredits(balanceUnits)),
+      inviteReward: Number(formatCredits(INVITE_REWARD_CREDITS)),
+      costs: {
+        basic: Number(formatCredits(GENERATION_COSTS.basic)),
+        pro: Number(formatCredits(GENERATION_COSTS.pro)),
+        premium: Number(formatCredits(GENERATION_COSTS.premium)),
+      },
+    },
+    ledger: getRecentCreditLedger(clientId),
+  };
+}
+
+function applyReferral(clientId, inviteCode) {
+  const account = ensureAccount(clientId);
+  if (!inviteCode || account.referredBy) return accountSummary(clientId);
+
+  const inviter = [...store.accounts.values()].find((item) => item.inviteCode === String(inviteCode).trim());
+  if (!inviter || inviter.clientId === clientId) return accountSummary(clientId);
+
+  const target = store.accounts.get(clientId);
+  target.referredBy = inviter.clientId;
+  target.updatedAt = nowIso();
+  addCreditEntry(inviter.clientId, INVITE_REWARD_CREDITS, "invite_reward", clientId);
+
+  return accountSummary(clientId);
+}
+
+function minimumPlanForPayload(payload) {
+  if (payload.workflow === "model-bag-replacement") return "pro";
+  if (payload.deliveryTier?.startsWith("manual retouch review") || payload.generationMode === "premium") return "premium";
+  if (payload.deliveryTier?.includes("commercial-ready")) return "pro";
+  return "basic";
+}
+
+function creditCostForPlan(planId) {
+  return GENERATION_COSTS[planId] || GENERATION_COSTS.basic;
+}
+
+function assertPlanAccess(request, payload) {
+  const clientId = getClientId(request);
+  const requiredPlanId = minimumPlanForPayload(payload);
+  return { allowed: Boolean(clientId), statusCode: clientId ? 200 : 400, clientId, requiredPlanId };
+}
+
+function handleListPlans(response) {
+  sendJson(response, 200, {
+    plans: Object.values(PLAN_CONFIGS).map(publicPlan),
+    creditPacks: Object.values(CREDIT_PACKS).map(publicCreditPack),
+    generationCosts: {
+      basic: Number(formatCredits(GENERATION_COSTS.basic)),
+      pro: Number(formatCredits(GENERATION_COSTS.pro)),
+      premium: Number(formatCredits(GENERATION_COSTS.premium)),
+    },
+  });
+}
+
+function handleCurrentEntitlement(request, response) {
+  const clientId = getClientId(request);
+  if (clientId) ensureAccount(clientId);
+  sendJson(response, 200, { entitlement: getEntitlement(clientId), account: clientId ? accountSummary(clientId) : null });
+}
+
+function handleGetAccount(request, response) {
+  const clientId = getClientId(request);
+  if (!clientId) {
+    sendError(response, 400, "Missing X-Client-Id");
+    return;
+  }
+  sendJson(response, 200, accountSummary(clientId));
+}
+
+async function handleApplyReferral(request, response) {
+  try {
+    const clientId = getClientId(request);
+    if (!clientId) {
+      sendError(response, 400, "Missing X-Client-Id");
+      return;
+    }
+    const payload = await readJsonBody(request);
+    sendJson(response, 200, applyReferral(clientId, payload.inviteCode));
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      sendError(response, 400, "Invalid JSON body");
+      return;
+    }
+    sendError(response, 500, error.message);
+  }
+}
+
+async function handleCreatePayment(request, response) {
+  try {
+    const clientId = getClientId(request);
+    if (!clientId) {
+      sendError(response, 400, "Missing X-Client-Id");
+      return;
+    }
+
+    const payload = await readJsonBody(request);
+    const plan = PLAN_CONFIGS[payload.planId];
+    const creditPack = CREDIT_PACKS[payload.packId];
+    if (!plan && !creditPack) {
+      sendError(response, 400, "Unknown planId or packId");
+      return;
+    }
+    ensureAccount(clientId);
+    const paymentTarget = creditPack || plan;
+
+    const paymentId = `pay_${randomUUID().replaceAll("-", "")}`;
+    const timestamp = nowIso();
+    const payment = {
+      id: paymentId,
+      clientId,
+      planId: paymentTarget.id,
+      amountCents: paymentTarget.amountCents,
+      status: "pending",
+      createdAt: timestamp,
+      paidAt: null,
+    };
+    store.payments.set(paymentId, payment);
+
+    sendJson(response, 201, {
+      payment: {
+        id: paymentId,
+        plan: plan ? publicPlan(plan) : null,
+        creditPack: creditPack ? publicCreditPack(creditPack) : null,
+        status: "pending",
+        mockPayUrl: `/api/payments/${paymentId}/confirm`,
+      },
+    });
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      sendError(response, 400, "Invalid JSON body");
+      return;
+    }
+    sendError(response, 500, error.message);
+  }
+}
+
+async function handleConfirmPayment(request, response) {
+  const clientId = getClientId(request);
+  if (!clientId) {
+    sendError(response, 400, "Missing X-Client-Id");
+    return;
+  }
+
+  const paymentId = request.url.split("/").at(-2);
+  const payment = store.payments.get(paymentId);
+  if (!payment || payment.clientId !== clientId) {
+    sendError(response, 404, "Payment not found");
+    return;
+  }
+
+  const plan = PLAN_CONFIGS[payment.planId];
+  const creditPack = CREDIT_PACKS[payment.planId];
+  if (!plan && !creditPack) {
+    sendError(response, 400, "Payment plan is invalid");
+    return;
+  }
+
+  const timestamp = nowIso();
+  payment.status = "paid";
+  payment.paidAt = timestamp;
+
+  if (plan) {
+    store.entitlements.set(clientId, {
+      clientId,
+      planId: plan.id,
+      paymentId,
+      startsAt: timestamp,
+      expiresAt: null,
+      updatedAt: timestamp,
+    });
+    addCreditEntry(clientId, plan.amountCents / 10, "payment_credit", paymentId);
+  } else {
+    addCreditEntry(clientId, creditPack.creditUnits, "credit_recharge", paymentId);
+  }
+
+  sendJson(response, 200, {
+    payment: paymentToJson(payment),
+    entitlement: getEntitlement(clientId),
+    account: accountSummary(clientId),
+  });
 }
 
 async function handleGenerateImage(request, response) {
   try {
     const payload = await readJsonBody(request);
+    const access = assertPlanAccess(request, payload);
+    if (!access.allowed) {
+      sendJson(response, access.statusCode, { error: "Missing X-Client-Id" });
+      return;
+    }
+
+    ensureAccount(access.clientId);
+    const requiredPlanId = minimumPlanForPayload(payload);
+    const creditCost = creditCostForPlan(requiredPlanId);
+    const balance = getCreditBalanceUnits(access.clientId);
+    if (balance < creditCost) {
+      sendJson(response, 402, {
+        error: `积分不足，当前余额 ${formatCredits(balance)}，本次需要 ${formatCredits(creditCost)} 积分。`,
+        credits: accountSummary(access.clientId).credits,
+        requiredCredits: Number(formatCredits(creditCost)),
+      });
+      return;
+    }
+
     const taskId = `task_${randomUUID().replaceAll("-", "")}`;
     const assets = await saveEmbeddedImages(taskId, payload);
     const storedResponse = makeStoredResponse(taskId, payload, assets);
-    insertTask(taskId, payload, storedResponse, assets);
+    insertTask(taskId, payload, storedResponse, assets, {
+      clientId: access.clientId,
+      amountUnits: creditCost,
+      reason: `${requiredPlanId}_generation`,
+    });
+    storedResponse.credits = accountSummary(access.clientId).credits;
     sendJson(response, 201, storedResponse);
   } catch (error) {
     if (error instanceof SyntaxError) {
@@ -268,59 +618,41 @@ async function handleGenerateImage(request, response) {
   }
 }
 
-function handleListTasks(requestUrl, response) {
+function handleListTasks(request, requestUrl, response) {
   const limit = Math.min(Number(requestUrl.searchParams.get("limit") || 20), 100);
-  const rows = database
-    .prepare(
-      `
-      SELECT id, workflow, status, prompt, response_json, created_at, updated_at
-      FROM tasks
-      ORDER BY created_at DESC
-      LIMIT ?
-    `,
-    )
-    .all(limit);
+  const clientId = getClientId(request);
+  if (!clientId) {
+    sendError(response, 400, "Missing X-Client-Id");
+    return;
+  }
 
-  sendJson(response, 200, { tasks: rows.map(taskRowToJson) });
+  const tasks = [...store.tasks.values()]
+    .filter((task) => task.clientId === clientId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit)
+    .map(taskToJson);
+
+  sendJson(response, 200, { tasks });
 }
 
-function handleGetTask(taskId, response) {
-  const task = database
-    .prepare(
-      `
-      SELECT id, workflow, status, prompt, response_json, created_at, updated_at
-      FROM tasks
-      WHERE id = ?
-    `,
-    )
-    .get(taskId);
+function handleGetTask(request, taskId, response) {
+  const clientId = getClientId(request);
+  if (!clientId) {
+    sendError(response, 400, "Missing X-Client-Id");
+    return;
+  }
 
-  if (!task) {
+  const task = store.tasks.get(taskId);
+  if (!task || task.clientId !== clientId) {
     sendError(response, 404, "Task not found");
     return;
   }
 
-  const assets = database
-    .prepare(
-      `
-      SELECT id, role, original_name, mime_type, public_url, size_bytes, created_at
-      FROM assets
-      WHERE task_id = ?
-      ORDER BY created_at ASC
-    `,
-    )
-    .all(taskId)
-    .map((asset) => ({
-      id: asset.id,
-      role: asset.role,
-      originalName: asset.original_name,
-      mimeType: asset.mime_type,
-      publicUrl: asset.public_url,
-      sizeBytes: asset.size_bytes,
-      createdAt: asset.created_at,
-    }));
+  const assets = [...store.assets.values()]
+    .filter((asset) => asset.taskId === taskId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-  sendJson(response, 200, { ...taskRowToJson(task), assets });
+  sendJson(response, 200, { ...taskToJson(task), assets });
 }
 
 async function serveStatic(requestUrl, response) {
@@ -358,7 +690,7 @@ async function route(request, response) {
     response.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, X-Client-Id",
     });
     response.end();
     return;
@@ -367,19 +699,49 @@ async function route(request, response) {
   if (request.method === "GET" && requestUrl.pathname === "/api/health") {
     sendJson(response, 200, {
       ok: true,
-      database: path.relative(ROOT, DB_PATH),
-      databaseExists: existsSync(DB_PATH),
+      storage: "memory",
+      persistent: false,
     });
     return;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/plans") {
+    handleListPlans(response);
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/entitlement") {
+    handleCurrentEntitlement(request, response);
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/account") {
+    handleGetAccount(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/referrals") {
+    await handleApplyReferral(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/payments") {
+    await handleCreatePayment(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && /^\/api\/payments\/[^/]+\/confirm$/.test(requestUrl.pathname)) {
+    await handleConfirmPayment(request, response);
+    return;
+  }
+
   if (request.method === "GET" && requestUrl.pathname === "/api/tasks") {
-    handleListTasks(requestUrl, response);
+    handleListTasks(request, requestUrl, response);
     return;
   }
 
   if (request.method === "GET" && requestUrl.pathname.startsWith("/api/tasks/")) {
-    handleGetTask(requestUrl.pathname.split("/").pop(), response);
+    handleGetTask(request, requestUrl.pathname.split("/").pop(), response);
     return;
   }
 
@@ -401,6 +763,6 @@ ensureStorage().then(() => {
     route(request, response).catch((error) => sendError(response, 500, error.message));
   }).listen(PORT, "127.0.0.1", () => {
     console.log(`ImgBest server running at http://127.0.0.1:${PORT}`);
-    console.log(`SQLite database: ${DB_PATH}`);
+    console.log("Storage: memory (replace this layer when connecting your database)");
   });
 });
