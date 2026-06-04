@@ -24,6 +24,8 @@ const replaceLoading = document.querySelector("#replaceLoading");
 const replaceResult = document.querySelector("#replaceResult");
 const replaceReadiness = document.querySelector("#replaceReadiness");
 const exportReplacePayload = document.querySelector("#exportReplacePayload");
+const qualityScore = document.querySelector("#qualityScore");
+const qualityChecklist = document.querySelector("#qualityChecklist");
 
 let selectedTemplate = document.querySelector(".template-card.is-active")?.dataset.template || "";
 let latestPayload = null;
@@ -59,7 +61,9 @@ function updatePromptScore() {
 function buildPromptPayload() {
   const productType = document.querySelector("#productType").value;
   const usage = document.querySelector("#usage").value;
+  const channelPreset = document.querySelector("#channelPreset").value;
   const brandKit = document.querySelector("#brandKit").value;
+  const deliveryTier = document.querySelector("#deliveryTier").value;
   const aspectRatio = document.querySelector("#aspectRatio").value;
   const realism = document.querySelector("#realism").value;
   const variantCount = Number(document.querySelector("#variantCount").value);
@@ -73,10 +77,12 @@ function buildPromptPayload() {
     usage,
     productType,
     brandKit,
+    channelPreset,
     selectedTemplate,
     "AI ecommerce product photography for ecommerce conversion",
     "fashion model presenting the product naturally",
     customPrompt || "clean luxury studio scene, premium leather texture, commercial lighting",
+    deliveryTier,
     modules.join(", "),
   ]
     .filter(Boolean)
@@ -94,7 +100,9 @@ function buildPromptPayload() {
       "low quality, blurry, distorted hands, warped product, fake texture, watermark, extra fingers, unreadable text",
     productType,
     usage,
+    channelPreset,
     brandKit,
+    deliveryTier,
     aspectRatio,
     realism,
     variantCount,
@@ -105,6 +113,32 @@ function buildPromptPayload() {
     variantPrompts,
     seed: Math.floor(Math.random() * 1000000),
   };
+}
+
+function getCommercialGrade(payload) {
+  if (payload.promptScore >= 86 && payload.modules.length >= 5) return "A";
+  if (payload.promptScore >= 72) return "B+";
+  if (payload.promptScore >= 58) return "B";
+  return "C";
+}
+
+function renderQualityChecklist(payload, response = null) {
+  const grade = getCommercialGrade(payload);
+  const hasRetouch = payload.deliveryTier.includes("manual retouch");
+  const hasChannel = Boolean(payload.channelPreset);
+  const checklist = [
+    hasChannel ? "已写入渠道规格，生成后按主图/封面/广告裁切复核。" : "建议补充渠道规格，避免构图不可用。",
+    payload.modules.includes("keep product shape and material consistent")
+      ? "已锁定包型和材质一致性，仍需人工比对实物色差。"
+      : "建议开启商品一致性锁定，降低包型漂移。",
+    payload.modules.includes("accurate hands and bag straps")
+      ? "已强调手部和肩带自然，出图后优先筛掉畸形握持。"
+      : "建议加入手部、肩带约束。",
+    hasRetouch ? "交付等级包含人工精修复核，适合高还原度订单。" : "当前等级适合预览或商用精选，复杂 logo/五金不要过度承诺。",
+  ];
+
+  qualityScore.textContent = response?.provider === "node-sqlite" ? `${grade} / 已入库` : grade;
+  qualityChecklist.innerHTML = checklist.map((item) => `<li>${item}</li>`).join("");
 }
 
 async function requestImageGeneration(payload) {
@@ -309,10 +343,21 @@ templateButtons.forEach((button) => {
     templateButtons.forEach((item) => item.classList.remove("is-active"));
     button.classList.add("is-active");
     selectedTemplate = button.dataset.template;
+    latestPayload = buildPromptPayload();
+    renderQualityChecklist(latestPayload);
   });
 });
 
-customPromptInput.addEventListener("input", updatePromptScore);
+customPromptInput.addEventListener("input", () => {
+  updatePromptScore();
+  latestPayload = buildPromptPayload();
+  renderQualityChecklist(latestPayload);
+});
+
+form.addEventListener("change", () => {
+  latestPayload = buildPromptPayload();
+  renderQualityChecklist(latestPayload);
+});
 
 exportPayload.addEventListener("click", () => {
   latestPayload = latestPayload || buildPromptPayload();
@@ -379,6 +424,7 @@ form.addEventListener("submit", async (event) => {
     taskId.textContent = response.id || "-";
     statusPill.textContent = response.provider === "mock" ? "模拟结果" : "生成完成";
     renderVariants(response.variants || [{ imageUrl: response.imageUrl || MOCK_IMAGE_URL, prompt: payload.prompt }]);
+    renderQualityChecklist(payload, response);
     saveHistory({
       id: response.id,
       usageLabel: document.querySelector("#usage").selectedOptions[0].textContent,
@@ -442,5 +488,6 @@ replaceForm.addEventListener("submit", async (event) => {
 });
 
 updatePromptScore();
+renderQualityChecklist(buildPromptPayload());
 renderHistory();
 updateReplaceReadiness();

@@ -13,10 +13,10 @@
         <span>ImgBest</span>
       </a>
       <nav class="nav" aria-label="主导航">
+        <a href="#packages">服务套餐</a>
         <a href="#studio">定制生成</a>
         <a href="#replace">一键换包</a>
-        <a href="#features">付费功能</a>
-        <a href="#api">接口</a>
+        <a href="#quality">交付质检</a>
       </nav>
       <button class="ghost-button" type="button">导入商品</button>
     </header>
@@ -35,8 +35,66 @@
           </p>
           <div class="hero-actions">
             <a class="primary-button" href="#studio">开始定制</a>
-            <a class="secondary-button" href="#api">查看接口</a>
+            <a class="secondary-button" href="#packages">查看套餐</a>
           </div>
+          <dl class="hero-metrics" aria-label="服务指标">
+            <div>
+              <dt>30 张</dt>
+              <dd>单 brief 批量出图</dd>
+            </div>
+            <div>
+              <dt>3 张</dt>
+              <dd>精选精修交付</dd>
+            </div>
+            <div>
+              <dt>2 次</dt>
+              <dd>修改反馈闭环</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="packages" id="packages" aria-labelledby="packages-title">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">Service Packages</p>
+            <h2 id="packages-title">先把女包商品图服务卖清楚</h2>
+          </div>
+          <p>
+            页面主打“可上架成片”，弱化空泛的平台感，把生成、筛图、精修和修改次数拆成商家容易理解的交付。
+          </p>
+        </div>
+        <div class="package-grid">
+          <article class="package-card">
+            <span>基础试单</span>
+            <h3>99 元</h3>
+            <p>生成 30 张包包 AI 场景图，精选 3 张做基础修正，适合白底图转小红书风格。</p>
+            <ul>
+              <li>商品图批量生成</li>
+              <li>基础清晰度放大</li>
+              <li>不承诺复杂 logo 还原</li>
+            </ul>
+          </article>
+          <article class="package-card is-featured">
+            <span>主推套餐</span>
+            <h3>199 元</h3>
+            <p>生成 20 张 AI 模特拿包图，精修 3 张，支持 2 次修改，适合淘宝、小红书、拼多多上架。</p>
+            <ul>
+              <li>模特持包自然度检查</li>
+              <li>包型、颜色、材质一致性锁定</li>
+              <li>渠道尺寸裁切建议</li>
+            </ul>
+          </article>
+          <article class="package-card">
+            <span>精修交付</span>
+            <h3>299 元+</h3>
+            <p>生成 30 张 AI 模特图，精修 5 张，支持 3 次修改，复杂五金、手部和包边交给人工复核。</p>
+            <ul>
+              <li>人工质检清单</li>
+              <li>详情页/广告图组合</li>
+              <li>复杂图可外包精修</li>
+            </ul>
+          </article>
         </div>
       </section>
 
@@ -69,12 +127,32 @@
                 </select>
               </label>
               <label class="field">
+                <span>渠道规格</span>
+                <select id="channelPreset">
+                  <option value="Taobao main image, clean composition, no fake claims">淘宝主图</option>
+                  <option value="Xiaohongshu cover, lifestyle angle, natural editorial mood">小红书封面</option>
+                  <option value="Pinduoduo listing, clear product scale and bright conversion layout">拼多多上架</option>
+                  <option value="Meta social ad, strong crop safety and readable negative space">社媒广告</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label class="field">
                 <span>品牌风格包</span>
                 <select id="brandKit">
                   <option value="quiet luxury, refined editorial, premium materials">轻奢质感</option>
                   <option value="clean marketplace, bright product detail, conversion focused">平台爆款</option>
                   <option value="urban commute, confident model, modern lifestyle">都市通勤</option>
                   <option value="minimal studio, precise texture, catalog consistency">统一目录</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>交付等级</span>
+                <select id="deliveryTier">
+                  <option value="AI generated preview set, no manual retouch guarantee">基础预览</option>
+                  <option value="commercial-ready selected images with simple retouch checklist" selected>商用精选</option>
+                  <option value="manual retouch review for hands, edges, hardware and product fidelity">人工精修</option>
                 </select>
               </label>
             </div>
@@ -192,6 +270,16 @@
               </div>
             </div>
 
+            <div class="quality-card">
+              <div class="mini-heading">
+                <span>商用质检</span>
+                <strong id="qualityScore">B+</strong>
+              </div>
+              <ul id="qualityChecklist">
+                <li>等待生成后输出质检建议。</li>
+              </ul>
+            </div>
+
             <div class="variant-strip" id="variantStrip" aria-label="生成变体"></div>
 
             <div class="history-panel">
@@ -301,49 +389,43 @@
             <div class="replace-readiness" id="replaceReadiness">
               已上传 0/5 张参考图
             </div>
+            <ul class="replace-checklist" aria-label="换包质检清单">
+              <li>模特脸、姿势、背景保持不变</li>
+              <li>包型、肩带、五金参考多视图</li>
+              <li>手部握持、阴影和光线需要复核</li>
+            </ul>
           </aside>
         </div>
       </section>
 
-      <section class="workflow" id="features" aria-labelledby="workflow-title">
-        <div class="section-heading">
-          <p class="eyebrow">Paid Features</p>
-          <h2 id="workflow-title">值得收费的核心能力</h2>
+      <section class="quality" id="quality" aria-labelledby="quality-title">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">Delivery Guardrails</p>
+            <h2 id="quality-title">把 AI 不稳定性写进交付流程</h2>
+          </div>
+          <p>低价套餐不承诺 logo、纹理、五金完全一致；高级套餐通过人工复核控制售后成本。</p>
         </div>
-        <div class="steps">
+        <div class="quality-grid">
           <article>
             <span>01</span>
-            <h3>批量变体</h3>
-            <p>一次 brief 生成多张场景、镜头和渠道变体，适合投放测试和详情页铺图。</p>
+            <h3>还原度</h3>
+            <p>检查包型比例、颜色、材质纹理、五金和肩带结构，避免图片漂亮但货不一样。</p>
           </article>
           <article>
             <span>02</span>
-            <h3>品牌风格包</h3>
-            <p>沉淀品牌调性、光线、构图和商品质感，保证不同批次出图统一。</p>
+            <h3>可商用</h3>
+            <p>筛掉畸形手指、浮空包、错误阴影、过度美化、虚假宣传和平台违规元素。</p>
           </article>
           <article>
             <span>03</span>
-            <h3>一键换包</h3>
-            <p>上传包的多视图和模特图，生成模特自然拿着指定包的商品图。</p>
+            <h3>可交付</h3>
+            <p>按主图、详情页、广告图输出不同裁切和 prompt 变体，生成记录可导出给 ComfyUI。</p>
           </article>
         </div>
       </section>
 
-      <section class="api" id="api" aria-labelledby="api-title">
-        <div class="section-heading">
-          <p class="eyebrow">API Hook</p>
-          <h2 id="api-title">ComfyUI 接口占位</h2>
-        </div>
-        <div class="api-layout">
-          <div class="api-copy">
-            <p>
-              当前前端已接入 <code>/api/generate-image</code> 后端代理。后端会写入 SQLite、保存上传素材，
-              后续在 <code>server.js</code> 中把任务转发到 ComfyUI 并回填真实 <code>imageUrl</code>。
-            </p>
-          </div>
-          <pre class="code-block" id="payloadView">等待生成请求。</pre>
-        </div>
-      </section>
+      <pre class="code-block visually-hidden" id="payloadView">等待生成请求。</pre>
     </main>
 
     <script src="./app.js"></script>
