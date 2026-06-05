@@ -208,6 +208,11 @@ function renderAuthState() {
   updateEmailCodeButton();
 }
 
+function setActiveAuthMethod(method) {
+  activeAuthMethod = method === "email" ? "email" : "password";
+  renderAuthState();
+}
+
 function hasPlan(requiredPlanId) {
   return true;
 }
@@ -929,10 +934,12 @@ refreshTaskHistory.addEventListener("click", loadProfileTasks);
 
 authTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
-    activeAuthMethod = tab.dataset.authTab || "password";
-    renderAuthState();
+    setActiveAuthMethod(tab.dataset.authTab);
   });
 });
+
+authPasswordTab.addEventListener("click", () => setActiveAuthMethod("password"));
+authEmailTab.addEventListener("click", () => setActiveAuthMethod("email"));
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -976,8 +983,9 @@ sendEmailCodeButton.addEventListener("click", async () => {
   }
 });
 
-emailAuthForm.addEventListener("submit", async (event) => {
+async function handleEmailCodeLoginSubmit(event) {
   event.preventDefault();
+  if (emailLoginButton.disabled) return;
   emailLoginButton.disabled = true;
   authStatus.textContent = "正在登录。";
   try {
@@ -988,7 +996,10 @@ emailAuthForm.addEventListener("submit", async (event) => {
   } finally {
     emailLoginButton.disabled = false;
   }
-});
+}
+
+emailAuthForm.addEventListener("submit", handleEmailCodeLoginSubmit);
+emailLoginButton.addEventListener("click", handleEmailCodeLoginSubmit);
 
 logoutButton.addEventListener("click", logout);
 
