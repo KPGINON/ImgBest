@@ -2,7 +2,7 @@ const express = require("express");
 const nodemailer = require("nodemailer");
 const { writeFile, mkdir } = require("node:fs/promises");
 const path = require("node:path");
-const { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } = require("node:crypto");
+const { createHash, randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual } = require("node:crypto");
 const { promisify } = require("node:util");
 const { prisma } = require("./src/db");
 
@@ -75,6 +75,52 @@ function securityHeaders(extra = {}) {
   };
 }
 
+const RESPONSE_SENSITIVE_KEYS = new Set([
+  "password",
+  "confirmPassword",
+  "passwordConfirm",
+  "passwordHash",
+  "passwordSalt",
+  "code",
+  "emailCode",
+  "resetCode",
+  "registerCode",
+  "codeHash",
+]);
+
+const LOG_SENSITIVE_KEYS = new Set([
+  ...RESPONSE_SENSITIVE_KEYS,
+  "token",
+  "authToken",
+  "SMTP_PASS",
+  "DATABASE_URL",
+]);
+
+const SENSITIVE_URL_KEYS = ["username", "password", "email", "code", "token", "auth", "authToken", "clientId"];
+
+function sanitizeResponsePayload(payload) {
+  if (Array.isArray(payload)) return payload.map(sanitizeResponsePayload);
+  if (!payload || typeof payload !== "object" || payload instanceof Date) return payload;
+
+  return Object.fromEntries(
+    Object.entries(payload)
+      .filter(([key]) => !RESPONSE_SENSITIVE_KEYS.has(key))
+      .map(([key, value]) => [key, sanitizeResponsePayload(value)]),
+  );
+}
+
+function redactSensitivePayload(payload) {
+  if (Array.isArray(payload)) return payload.map(redactSensitivePayload);
+  if (!payload || typeof payload !== "object" || payload instanceof Date) return payload;
+
+  return Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => [
+      key,
+      LOG_SENSITIVE_KEYS.has(key) ? "[REDACTED]" : redactSensitivePayload(value),
+    ]),
+  );
+}
+
 function sendJson(response, statusCode, data) {
   response
     .status(statusCode)
@@ -85,7 +131,7 @@ function sendJson(response, statusCode, data) {
       "Access-Control-Allow-Headers": "Content-Type, X-Client-Id, X-Auth-Token, Authorization",
       ...securityHeaders(),
     })
-    .json(data);
+    .json(sanitizeResponsePayload(data));
 }
 
 function sendNoContent(response) {
@@ -235,7 +281,12 @@ function formatCredits(units) {
 }
 
 function makeInviteCode() {
-  return `IB${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`;
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let index = 0; index < 6; index += 1) {
+    code += chars[randomInt(0, chars.length)];
+  }
+  return code;
 }
 
 async function makeUniqueInviteCode(client = prisma) {
@@ -575,7 +626,7 @@ async function handleRegister(request, response) {
       sendError(response, 400, "Invalid JSON body");
       return;
     }
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   }
 }
 
@@ -607,7 +658,7 @@ async function handleLogin(request, response) {
       sendError(response, 400, "Invalid JSON body");
       return;
     }
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   }
 }
 
@@ -667,7 +718,7 @@ async function handleSendEmailCode(request, response) {
       message: "验证码已发送",
     });
   } catch (error) {
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   }
 }
 
@@ -757,7 +808,7 @@ async function handlePasswordReset(request, response) {
       message: "密码已重置，请重新登录。",
     });
   } catch (error) {
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   }
 }
 
@@ -808,11 +859,25 @@ async function getRecentCreditLedger(clientId, limit = 8, client = prisma) {
   }));
 }
 
+function publicAccount(account) {
+  if (!account) return null;
+  return {
+    id: account.clientId,
+    clientId: account.clientId,
+    username: account.username,
+    email: account.email,
+    inviteCode: account.inviteCode,
+    referredBy: account.referredBy,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  };
+}
+
 async function accountSummary(clientId, client = prisma) {
   const account = await ensureAccount(clientId, client);
   const balanceUnits = await getCreditBalanceUnits(clientId, client);
   return {
-    account,
+    account: publicAccount(account),
     credits: {
       balanceUnits,
       balance: Number(formatCredits(balanceUnits)),
@@ -905,7 +970,7 @@ async function handleApplyReferral(request, response) {
       sendError(response, 400, "Invalid JSON body");
       return;
     }
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   }
 }
 
@@ -950,7 +1015,7 @@ async function handleCreatePayment(request, response) {
       sendError(response, 400, "Invalid JSON body");
       return;
     }
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   }
 }
 
@@ -1101,7 +1166,7 @@ async function handleGenerateImage(request, response) {
       sendError(response, 413, error.message);
       return;
     }
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   }
 }
 
@@ -1155,7 +1220,7 @@ async function handleHealth(response) {
       ok: false,
       storage: "postgresql",
       persistent: true,
-      error: error.message,
+      error: "Database health check failed",
     });
   }
 }
@@ -1184,6 +1249,29 @@ function applyCors(request, response, next) {
   next();
 }
 
+function sanitizeSensitiveQuery(request, response, next) {
+  if (request.method !== "GET") {
+    next();
+    return;
+  }
+
+  const url = new URL(request.originalUrl, "http://imgbest.local");
+  let changed = false;
+  SENSITIVE_URL_KEYS.forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  });
+
+  if (!changed) {
+    next();
+    return;
+  }
+
+  response.redirect(302, `${url.pathname}${url.search}`);
+}
+
 function apiGuard(request, response, next) {
   const isPublicApiRequest =
     request.path === "/health" ||
@@ -1209,6 +1297,7 @@ ensureStorage().then(() => {
   app.disable("x-powered-by");
   app.use(applySecurityHeaders);
   app.use(applyCors);
+  app.use(sanitizeSensitiveQuery);
   app.use(express.json({ limit: MAX_BODY_SIZE }));
 
   app.get("/robots.txt", (request, response) => {
@@ -1280,7 +1369,7 @@ ensureStorage().then(() => {
       sendError(response, 413, "Request body is too large");
       return;
     }
-    sendError(response, 500, error.message);
+    sendError(response, 500, "服务器内部错误。");
   });
 
   app.listen(PORT, "127.0.0.1", () => {

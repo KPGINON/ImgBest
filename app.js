@@ -269,6 +269,42 @@ function creditBalanceValue() {
   return accountState?.credits?.balance || 0;
 }
 
+function sanitizeSensitiveUrlParams() {
+  const url = new URL(window.location.href);
+  const sensitiveKeys = ["username", "password", "email", "code", "token", "auth", "authToken", "clientId"];
+  let changed = false;
+
+  sensitiveKeys.forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+  }
+}
+
+function sanitizeSensitiveStorage() {
+  const unsafeKeyParts = ["password", "emailcode", "resetcode", "registercode", "verificationcode"];
+  [localStorage, sessionStorage].forEach((storage) => {
+    for (let index = storage.length - 1; index >= 0; index -= 1) {
+      const key = storage.key(index);
+      const normalizedKey = String(key || "").toLowerCase();
+      if (unsafeKeyParts.some((part) => normalizedKey.includes(part))) {
+        storage.removeItem(key);
+      }
+    }
+  });
+}
+
+function buildInviteUrl(inviteCode) {
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set("ref", inviteCode);
+  return url.toString();
+}
+
 function hasCredits(requiredPlanId) {
   return creditBalanceValue() >= CREDIT_COSTS[requiredPlanId];
 }
@@ -338,11 +374,10 @@ function updateAccessState() {
   authAccountCredits.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
 
   if (accountState?.account) {
-    const url = new URL(window.location.href);
-    url.searchParams.set("ref", accountState.account.inviteCode);
+    const inviteUrl = buildInviteUrl(accountState.account.inviteCode);
     inviteCode.textContent = accountState.account.inviteCode;
-    inviteLink.textContent = url.toString();
-    renderProfileSummary(url.toString());
+    inviteLink.textContent = inviteUrl;
+    renderProfileSummary(inviteUrl);
   }
 
   document.querySelectorAll("[data-plan-card]").forEach((card) => {
@@ -1306,6 +1341,8 @@ replaceForm.addEventListener("submit", async (event) => {
   }
 });
 
+sanitizeSensitiveUrlParams();
+sanitizeSensitiveStorage();
 updatePromptScore();
 renderQualityChecklist(buildPromptPayload());
 renderHistory();

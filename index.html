@@ -236,7 +236,7 @@
               <button id="authRegisterViewButton" type="button" data-auth-view="register">注册</button>
               <button id="authForgotViewButton" type="button" data-auth-view="forgot">找回密码</button>
             </div>
-            <form class="auth-form auth-view-panel is-active" id="authForm" data-auth-panel="login">
+            <form class="auth-form auth-view-panel is-active" id="authForm" method="post" data-auth-panel="login">
               <input id="authUsername" name="identifier" type="text" autocomplete="username" placeholder="账号或邮箱" />
               <input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="密码至少 8 位" />
               <div class="auth-actions-row">
@@ -247,7 +247,7 @@
                 <button type="button" data-auth-view-link="forgot">忘记密码？</button>
               </div>
             </form>
-            <form class="auth-form auth-view-panel" id="emailAuthForm" data-auth-panel="register">
+            <form class="auth-form auth-view-panel" id="emailAuthForm" method="post" data-auth-panel="register">
               <input id="registerUsername" name="username" type="text" autocomplete="username" placeholder="账号" />
               <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="邮箱" />
               <div class="email-code-row">
@@ -261,7 +261,7 @@
                 <button type="button" data-auth-view-link="login">已有账号？去登录</button>
               </div>
             </form>
-            <form class="auth-form auth-view-panel" id="forgotAuthForm" data-auth-panel="forgot">
+            <form class="auth-form auth-view-panel" id="forgotAuthForm" method="post" data-auth-panel="forgot">
               <input id="resetEmail" name="email" type="email" autocomplete="email" placeholder="邮箱" />
               <div class="email-code-row">
                 <input id="resetEmailCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
@@ -333,7 +333,7 @@
         </div>
 
         <div class="workspace">
-          <form class="control-panel" id="generationForm">
+          <form class="control-panel" id="generationForm" method="post">
             <div class="panel-header">
               <span>生成设置</span>
               <p>选择渠道、交付等级和画幅，系统会自动组合商品图 prompt。</p>
@@ -544,7 +544,7 @@
         </div>
 
         <div class="replace-workspace">
-          <form class="replace-panel" id="replaceForm">
+          <form class="replace-panel" id="replaceForm" method="post">
             <div class="panel-header">
               <span>参考包图上传</span>
               <p>建议使用同一光线下的多角度图片，至少上传模特图和 1 张包图。</p>
@@ -684,6 +684,6 @@
       <pre class="code-block visually-hidden" id="payloadView">等待生成请求。</pre>
     </main>
 
-    <script src="./app.js?v=20260605-email-click"></script>
+    <script src="./app.js?v=20260606-account-security"></script>
   </body>
 </html>
