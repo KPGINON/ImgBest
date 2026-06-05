@@ -73,20 +73,31 @@ const authForm = document.querySelector("#authForm");
 const emailAuthForm = document.querySelector("#emailAuthForm");
 const authUsername = document.querySelector("#authUsername");
 const authPassword = document.querySelector("#authPassword");
+const registerUsername = document.querySelector("#registerUsername");
+const registerPassword = document.querySelector("#registerPassword");
+const registerPasswordConfirm = document.querySelector("#registerPasswordConfirm");
 const authEmail = document.querySelector("#authEmail");
 const authEmailCode = document.querySelector("#authEmailCode");
+const forgotAuthForm = document.querySelector("#forgotAuthForm");
+const resetEmail = document.querySelector("#resetEmail");
+const resetEmailCode = document.querySelector("#resetEmailCode");
+const resetPassword = document.querySelector("#resetPassword");
+const resetPasswordConfirm = document.querySelector("#resetPasswordConfirm");
 const authStatus = document.querySelector("#authStatus");
-const authTabs = document.querySelectorAll("[data-auth-tab]");
+const authTabs = document.querySelectorAll("[data-auth-view]");
+const authViewLinks = document.querySelectorAll("[data-auth-view-link]");
 const authTabPanels = document.querySelectorAll("[data-auth-panel]");
-const authPasswordTab = document.querySelector("#authPasswordTab");
-const authEmailTab = document.querySelector("#authEmailTab");
+const authLoginViewButton = document.querySelector("#authLoginViewButton");
+const authRegisterViewButton = document.querySelector("#authRegisterViewButton");
+const authForgotViewButton = document.querySelector("#authForgotViewButton");
 const authAccountSummary = document.querySelector("#authAccountSummary");
 const authAccountName = document.querySelector("#authAccountName");
 const authAccountCredits = document.querySelector("#authAccountCredits");
 const loginButton = document.querySelector("#loginButton");
 const registerButton = document.querySelector("#registerButton");
 const sendEmailCodeButton = document.querySelector("#sendEmailCodeButton");
-const emailLoginButton = document.querySelector("#emailLoginButton");
+const sendResetCodeButton = document.querySelector("#sendResetCodeButton");
+const passwordResetButton = document.querySelector("#passwordResetButton");
 const logoutButton = document.querySelector("#logoutButton");
 const navGuestActions = document.querySelector("#navGuestActions");
 const navAccountActions = document.querySelector("#navAccountActions");
@@ -98,9 +109,11 @@ let latestReplacePayload = null;
 let activeEntitlement = null;
 let pendingPayment = null;
 let accountState = null;
-let activeAuthMethod = "password";
+let activeAuthView = "login";
 let emailCodeCountdown = 0;
 let emailCodeTimer = null;
+let resetCodeCountdown = 0;
+let resetCodeTimer = null;
 const replacementAssets = {
   bagFront: null,
   bagLeft45: null,
@@ -145,7 +158,7 @@ function clearAuthState() {
   accountState = null;
   activeEntitlement = null;
   pendingPayment = null;
-  activeAuthMethod = "password";
+  activeAuthView = "login";
   renderAuthState();
   updateAccessState();
   renderProfileTasks([]);
@@ -160,6 +173,12 @@ function updateEmailCodeButton() {
   const loggedIn = isAuthenticated() && accountState?.account;
   sendEmailCodeButton.disabled = loggedIn || emailCodeCountdown > 0;
   sendEmailCodeButton.textContent = emailCodeCountdown > 0 ? `${emailCodeCountdown} 秒后重发` : "发送验证码";
+}
+
+function updateResetCodeButton() {
+  const loggedIn = isAuthenticated() && accountState?.account;
+  sendResetCodeButton.disabled = loggedIn || resetCodeCountdown > 0;
+  sendResetCodeButton.textContent = resetCodeCountdown > 0 ? `${resetCodeCountdown} 秒后重发` : "发送验证码";
 }
 
 function startEmailCodeCountdown() {
@@ -177,6 +196,21 @@ function startEmailCodeCountdown() {
   }, 1000);
 }
 
+function startResetCodeCountdown() {
+  resetCodeCountdown = 60;
+  updateResetCodeButton();
+  if (resetCodeTimer) window.clearInterval(resetCodeTimer);
+  resetCodeTimer = window.setInterval(() => {
+    resetCodeCountdown -= 1;
+    if (resetCodeCountdown <= 0) {
+      resetCodeCountdown = 0;
+      window.clearInterval(resetCodeTimer);
+      resetCodeTimer = null;
+    }
+    updateResetCodeButton();
+  }, 1000);
+}
+
 function renderAuthState() {
   const loggedIn = isAuthenticated() && accountState?.account;
   authStatus.textContent = loggedIn
@@ -191,25 +225,39 @@ function renderAuthState() {
   logoutButton.hidden = !loggedIn;
   loginButton.hidden = loggedIn;
   registerButton.hidden = loggedIn;
+  passwordResetButton.hidden = loggedIn;
   authUsername.disabled = loggedIn;
   authPassword.disabled = loggedIn;
+  registerUsername.disabled = loggedIn;
+  registerPassword.disabled = loggedIn;
+  registerPasswordConfirm.disabled = loggedIn;
   authEmail.disabled = loggedIn;
   authEmailCode.disabled = loggedIn;
-  emailLoginButton.hidden = loggedIn;
+  resetEmail.disabled = loggedIn;
+  resetEmailCode.disabled = loggedIn;
+  resetPassword.disabled = loggedIn;
+  resetPasswordConfirm.disabled = loggedIn;
   authTabs.forEach((tab) => {
     tab.hidden = loggedIn;
-    tab.classList.toggle("is-active", tab.dataset.authTab === activeAuthMethod);
+    tab.classList.toggle("is-active", tab.dataset.authView === activeAuthView);
   });
   authTabPanels.forEach((panel) => {
-    const isActive = panel.dataset.authPanel === activeAuthMethod;
+    const isActive = panel.dataset.authPanel === activeAuthView;
     panel.classList.toggle("is-active", isActive);
     panel.hidden = loggedIn || !isActive;
   });
   updateEmailCodeButton();
+  updateResetCodeButton();
 }
 
-function setActiveAuthMethod(method) {
-  activeAuthMethod = method === "email" ? "email" : "password";
+function setActiveAuthView(view) {
+  activeAuthView = ["login", "register", "forgot"].includes(view) ? view : "login";
+  authStatus.textContent =
+    activeAuthView === "login"
+      ? "请输入账号或邮箱和密码。"
+      : activeAuthView === "register"
+      ? "注册需要先完成邮箱验证码验证。"
+      : "请输入邮箱验证码并设置新密码。";
   renderAuthState();
 }
 
@@ -686,17 +734,17 @@ async function loadAccount() {
   updateAccessState();
 }
 
-async function submitAuth(mode) {
-  const username = authUsername.value.trim();
+async function submitLogin() {
+  const identifier = authUsername.value.trim();
   const password = authPassword.value;
-  const response = await fetch(`/api/auth/${mode}`, {
+  const response = await fetch("/api/auth/login", {
     method: "POST",
     headers: requestHeaders(),
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ identifier, password }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || `${mode === "register" ? "注册" : "登录"}失败：${response.status}`);
+    throw new Error(data.error || `登录失败：${response.status}`);
   }
   applyAuthPayload(data);
   authPassword.value = "";
@@ -704,37 +752,63 @@ async function submitAuth(mode) {
   await loadProfileTasks();
 }
 
-async function sendEmailCode() {
+async function submitRegister() {
+  const username = registerUsername.value.trim();
   const email = authEmail.value.trim();
+  const code = authEmailCode.value.trim();
+  const password = registerPassword.value;
+  const passwordConfirm = registerPasswordConfirm.value;
+  if (password !== passwordConfirm) throw new Error("两次输入的密码不一致。");
+  const response = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: requestHeaders(),
+    body: JSON.stringify({ username, email, password, code }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `注册失败：${response.status}`);
+  }
+  applyAuthPayload(data);
+  registerPassword.value = "";
+  registerPasswordConfirm.value = "";
+  authEmailCode.value = "";
+  await loadEntitlement();
+  await loadProfileTasks();
+}
+
+async function sendEmailCode(email, purpose) {
   const response = await fetch("/api/auth/email-code/send", {
     method: "POST",
     headers: requestHeaders(),
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, purpose }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(data.error || `发送验证码失败：${response.status}`);
   }
-  startEmailCodeCountdown();
   authStatus.textContent = data.message || "验证码已发送";
 }
 
-async function submitEmailCodeLogin() {
-  const email = authEmail.value.trim();
-  const code = authEmailCode.value.trim();
-  const response = await fetch("/api/auth/email-code/login", {
+async function submitPasswordReset() {
+  const email = resetEmail.value.trim();
+  const code = resetEmailCode.value.trim();
+  const password = resetPassword.value;
+  const passwordConfirm = resetPasswordConfirm.value;
+  if (password !== passwordConfirm) throw new Error("两次输入的密码不一致。");
+  const response = await fetch("/api/auth/password-reset", {
     method: "POST",
     headers: requestHeaders(),
-    body: JSON.stringify({ email, code }),
+    body: JSON.stringify({ email, code, password }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || `邮箱验证码登录失败：${response.status}`);
+    throw new Error(data.error || `重置密码失败：${response.status}`);
   }
-  applyAuthPayload(data);
-  authEmailCode.value = "";
-  await loadEntitlement();
-  await loadProfileTasks();
+  resetEmailCode.value = "";
+  resetPassword.value = "";
+  resetPasswordConfirm.value = "";
+  setActiveAuthView("login");
+  authStatus.textContent = data.message || "密码已重置，请重新登录。";
 }
 
 async function logout() {
@@ -934,12 +1008,17 @@ refreshTaskHistory.addEventListener("click", loadProfileTasks);
 
 authTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
-    setActiveAuthMethod(tab.dataset.authTab);
+    setActiveAuthView(tab.dataset.authView);
   });
 });
 
-authPasswordTab.addEventListener("click", () => setActiveAuthMethod("password"));
-authEmailTab.addEventListener("click", () => setActiveAuthMethod("email"));
+authViewLinks.forEach((button) => {
+  button.addEventListener("click", () => setActiveAuthView(button.dataset.authViewLink));
+});
+
+authLoginViewButton.addEventListener("click", () => setActiveAuthView("login"));
+authRegisterViewButton.addEventListener("click", () => setActiveAuthView("register"));
+authForgotViewButton.addEventListener("click", () => setActiveAuthView("forgot"));
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -947,7 +1026,7 @@ authForm.addEventListener("submit", async (event) => {
   registerButton.disabled = true;
   authStatus.textContent = "正在登录。";
   try {
-    await submitAuth("login");
+    await submitLogin();
     authStatus.textContent = `已登录：${accountDisplayName()}`;
   } catch (error) {
     authStatus.textContent = error.message;
@@ -957,12 +1036,13 @@ authForm.addEventListener("submit", async (event) => {
   }
 });
 
-registerButton.addEventListener("click", async () => {
+emailAuthForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
   loginButton.disabled = true;
   registerButton.disabled = true;
   authStatus.textContent = "正在注册。";
   try {
-    await submitAuth("register");
+    await submitRegister();
     authStatus.textContent = `注册成功：${accountDisplayName()}`;
   } catch (error) {
     authStatus.textContent = error.message;
@@ -976,30 +1056,38 @@ sendEmailCodeButton.addEventListener("click", async () => {
   sendEmailCodeButton.disabled = true;
   authStatus.textContent = "正在发送验证码。";
   try {
-    await sendEmailCode();
+    await sendEmailCode(authEmail.value.trim(), "register");
+    startEmailCodeCountdown();
   } catch (error) {
     authStatus.textContent = error.message;
     updateEmailCodeButton();
   }
 });
 
-async function handleEmailCodeLoginSubmit(event) {
-  event.preventDefault();
-  if (emailLoginButton.disabled) return;
-  emailLoginButton.disabled = true;
-  authStatus.textContent = "正在登录。";
+sendResetCodeButton.addEventListener("click", async () => {
+  sendResetCodeButton.disabled = true;
+  authStatus.textContent = "正在发送验证码。";
   try {
-    await submitEmailCodeLogin();
-    authStatus.textContent = `已登录：${accountDisplayName()}`;
+    await sendEmailCode(resetEmail.value.trim(), "password_reset");
+    startResetCodeCountdown();
+  } catch (error) {
+    authStatus.textContent = error.message;
+    updateResetCodeButton();
+  }
+});
+
+forgotAuthForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  passwordResetButton.disabled = true;
+  authStatus.textContent = "正在重置密码。";
+  try {
+    await submitPasswordReset();
   } catch (error) {
     authStatus.textContent = error.message;
   } finally {
-    emailLoginButton.disabled = false;
+    passwordResetButton.disabled = false;
   }
-}
-
-emailAuthForm.addEventListener("submit", handleEmailCodeLoginSubmit);
-emailLoginButton.addEventListener("click", handleEmailCodeLoginSubmit);
+});
 
 logoutButton.addEventListener("click", logout);
 

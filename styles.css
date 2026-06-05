@@ -637,7 +637,7 @@ main {
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   border-radius: 999px;
   background: var(--surface-muted);
@@ -669,14 +669,14 @@ main {
 }
 
 .auth-tabs button[hidden],
-.auth-tab-panel[hidden],
+.auth-view-panel[hidden],
 .auth-account-summary[hidden],
-.auth-tab-panel:not(.is-active) {
+.auth-view-panel:not(.is-active) {
   display: none !important;
 }
 
 .auth-form,
-.auth-tab-panel.is-active {
+.auth-view-panel.is-active {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
@@ -685,8 +685,26 @@ main {
 
 .auth-actions-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
+}
+
+.auth-link-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-link-row button {
+  border: 0;
+  background: transparent;
+  color: var(--primary-dark);
+  padding: 0;
+  font-weight: 760;
+}
+
+.auth-link-row button:hover {
+  color: var(--primary);
 }
 
 .email-code-row {

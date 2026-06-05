@@ -172,17 +172,18 @@ function createMailTransporter() {
   });
 }
 
-async function sendLoginCodeEmail(email, code) {
+async function sendLoginCodeEmail(email, code, purpose) {
   if (!process.env.SMTP_HOST || !process.env.MAIL_FROM) {
     throw new Error("SMTP_HOST and MAIL_FROM must be configured");
   }
+  const subject = purpose === "password_reset" ? "ImgBest 重置密码验证码" : "ImgBest 注册验证码";
   const transporter = createMailTransporter();
   await transporter.sendMail({
     from: process.env.MAIL_FROM,
     to: email,
-    subject: "ImgBest 登录验证码",
-    text: `您的 ImgBest 登录验证码是：${code}\n\n验证码 5 分钟内有效，请勿泄露给他人。`,
-    html: `<p>您的 ImgBest 登录验证码是：</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${code}</p><p>验证码 5 分钟内有效，请勿泄露给他人。</p>`,
+    subject,
+    text: `您的 ${subject} 是：${code}\n\n验证码 5 分钟内有效，请勿泄露给他人。`,
+    html: `<p>您的 ${subject} 是：</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${code}</p><p>验证码 5 分钟内有效，请勿泄露给他人。</p>`,
   });
 }
 
@@ -499,41 +500,63 @@ async function handleRegister(request, response) {
   try {
     const payload = request.body || {};
     const username = normalizeUsername(payload.username);
+    const email = normalizeEmail(payload.email);
+    const code = String(payload.code || "").trim();
     const credentialError = validateCredentials(username, payload.password);
     if (credentialError) {
       sendError(response, 400, credentialError);
       return;
     }
+    const emailError = validateEmail(email);
+    if (emailError) {
+      sendError(response, 400, emailError);
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      sendError(response, 400, "验证码错误或已过期。");
+      return;
+    }
 
     const requestedClientId = getClientId(request) || `client_${randomUUID().replaceAll("-", "")}`;
+    const existingUsername = await prisma.account.findUnique({ where: { username } });
+    if (existingUsername) {
+      sendError(response, 409, "该账号已被注册。");
+      return;
+    }
+    const existingEmail = await prisma.account.findUnique({ where: { email } });
+    if (existingEmail) {
+      sendError(response, 409, "该邮箱已注册，请直接登录或找回密码。");
+      return;
+    }
     const passwordParts = await hashPassword(payload.password);
+    const verifiedCode = await verifyEmailCode(email, code, "register");
+    if (verifiedCode.error) {
+      sendError(response, verifiedCode.statusCode, verifiedCode.error);
+      return;
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const usernameOwner = await tx.account.findUnique({ where: { username } });
       if (usernameOwner) return { error: "该账号已被注册。" };
+      const emailOwner = await tx.account.findUnique({ where: { email } });
+      if (emailOwner) return { error: "该邮箱已注册，请直接登录或找回密码。" };
 
       const existing = await tx.account.findUnique({ where: { clientId: requestedClientId } });
-      let account;
-      if (existing) {
-        if (existing.username && existing.username !== username) return { error: "当前浏览器账户已绑定其他账号。" };
-        account = await tx.account.update({
-          where: { clientId: requestedClientId },
-          data: {
-            username,
-            passwordHash: passwordParts.passwordHash,
-            passwordSalt: passwordParts.passwordSalt,
-          },
-        });
-      } else {
-        account = await tx.account.create({
-          data: {
-            clientId: requestedClientId,
-            inviteCode: await makeUniqueInviteCode(tx),
-            username,
-            passwordHash: passwordParts.passwordHash,
-            passwordSalt: passwordParts.passwordSalt,
-          },
-        });
-      }
+      const clientId = existing ? `client_${randomUUID().replaceAll("-", "")}` : requestedClientId;
+      const account = await tx.account.create({
+        data: {
+          clientId,
+          inviteCode: await makeUniqueInviteCode(tx),
+          username,
+          email,
+          passwordHash: passwordParts.passwordHash,
+          passwordSalt: passwordParts.passwordSalt,
+        },
+      });
+      await tx.emailLoginCode.update({
+        where: { id: verifiedCode.codeId },
+        data: { usedAt: new Date() },
+      });
       return { account };
     });
 
@@ -559,16 +582,18 @@ async function handleRegister(request, response) {
 async function handleLogin(request, response) {
   try {
     const payload = request.body || {};
-    const username = normalizeUsername(payload.username);
-    if (!username || typeof payload.password !== "string") {
-      sendError(response, 400, "请输入账号和密码。");
+    const identifier = String(payload.identifier || payload.username || "").trim().toLowerCase();
+    if (!identifier || typeof payload.password !== "string") {
+      sendError(response, 400, "请输入账号或邮箱和密码。");
       return;
     }
 
-    const account = await prisma.account.findUnique({ where: { username } });
+    const account = identifier.includes("@")
+      ? await prisma.account.findUnique({ where: { email: normalizeEmail(identifier) } })
+      : await prisma.account.findUnique({ where: { username: normalizeUsername(identifier) } });
     const isValid = account ? await verifyPassword(payload.password, account.passwordSalt, account.passwordHash) : false;
     if (!isValid) {
-      sendError(response, 401, "账号或密码错误。");
+      sendError(response, 401, "账号/邮箱或密码错误。");
       return;
     }
 
@@ -590,15 +615,30 @@ async function handleSendEmailCode(request, response) {
   try {
     const payload = request.body || {};
     const email = normalizeEmail(payload.email);
+    const purpose = String(payload.purpose || "").trim();
     const emailError = validateEmail(email);
     if (emailError) {
       sendError(response, 400, emailError);
+      return;
+    }
+    if (!["register", "password_reset"].includes(purpose)) {
+      sendError(response, 400, "Unknown email code purpose");
+      return;
+    }
+    const account = await prisma.account.findUnique({ where: { email } });
+    if (purpose === "register" && account) {
+      sendError(response, 409, "该邮箱已注册，请直接登录或找回密码。");
+      return;
+    }
+    if (purpose === "password_reset" && !account) {
+      sendError(response, 404, "该邮箱尚未注册。");
       return;
     }
 
     const recentCode = await prisma.emailLoginCode.findFirst({
       where: {
         email,
+        purpose,
         createdAt: {
           gte: new Date(Date.now() - EMAIL_CODE_RESEND_WINDOW_MS),
         },
@@ -615,12 +655,13 @@ async function handleSendEmailCode(request, response) {
       data: {
         id: `email_code_${randomUUID().replaceAll("-", "")}`,
         email,
+        purpose,
         codeHash: hashEmailCode(email, code),
         expiresAt: new Date(Date.now() + EMAIL_CODE_TTL_MS),
       },
     });
 
-    await sendLoginCodeEmail(email, code);
+    await sendLoginCodeEmail(email, code, purpose);
     sendJson(response, 200, {
       ok: true,
       message: "验证码已发送",
@@ -636,32 +677,40 @@ function isSameHash(expectedHash, actualHash) {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-async function accountForEmailLogin(email, request) {
-  const existingByEmail = await prisma.account.findUnique({ where: { email } });
-  if (existingByEmail) return existingByEmail;
-
-  const requestedClientId = getClientId(request) || `client_${randomUUID().replaceAll("-", "")}`;
-  return prisma.$transaction(async (tx) => {
-    const existingByClientId = await tx.account.findUnique({ where: { clientId: requestedClientId } });
-    if (existingByClientId && !existingByClientId.email) {
-      return tx.account.update({
-        where: { clientId: requestedClientId },
-        data: { email },
-      });
-    }
-
-    const clientId = existingByClientId ? `client_${randomUUID().replaceAll("-", "")}` : requestedClientId;
-    return tx.account.create({
-      data: {
-        clientId,
-        email,
-        inviteCode: await makeUniqueInviteCode(tx),
-      },
+async function verifyEmailCode(email, code, purpose) {
+  if (!/^\d{6}$/.test(String(code || "").trim())) {
+    return { ok: false, statusCode: 400, error: "验证码错误或已过期。" };
+  }
+  const loginCode = await prisma.emailLoginCode.findFirst({
+    where: {
+      email,
+      purpose,
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!loginCode) return { ok: false, statusCode: 400, error: "验证码错误或已过期。" };
+  if (loginCode.attempts >= 5) {
+    return { ok: false, statusCode: 429, error: "验证码尝试次数过多，请重新获取。" };
+  }
+  if (!isSameHash(loginCode.codeHash, hashEmailCode(email, code))) {
+    await prisma.emailLoginCode.update({
+      where: { id: loginCode.id },
+      data: { attempts: { increment: 1 } },
     });
+    return { ok: false, statusCode: 400, error: "验证码错误或已过期。" };
+  }
+  return { ok: true, codeId: loginCode.id };
+}
+
+function handleEmailCodeLogin(request, response) {
+  sendJson(response, 410, {
+    error: "邮箱验证码登录已停用，请使用账号或邮箱加密码登录。",
   });
 }
 
-async function handleEmailCodeLogin(request, response) {
+async function handlePasswordReset(request, response) {
   try {
     const payload = request.body || {};
     const email = normalizeEmail(payload.email);
@@ -671,50 +720,41 @@ async function handleEmailCodeLogin(request, response) {
       sendError(response, 400, emailError);
       return;
     }
-    if (!/^\d{6}$/.test(code)) {
-      sendError(response, 400, "验证码错误或已过期。");
+    if (typeof payload.password !== "string" || payload.password.length < 8 || payload.password.length > 80) {
+      sendError(response, 400, "密码长度需要 8-80 位。");
       return;
     }
 
-    const loginCode = await prisma.emailLoginCode.findFirst({
-      where: {
-        email,
-        usedAt: null,
-        expiresAt: {
-          gt: new Date(),
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (!loginCode) {
-      sendError(response, 400, "验证码错误或已过期。");
+    const account = await prisma.account.findUnique({ where: { email } });
+    if (!account) {
+      sendError(response, 404, "该邮箱尚未注册。");
       return;
     }
-    if (loginCode.attempts >= 5) {
-      sendError(response, 429, "验证码尝试次数过多，请重新获取。");
+    const verifiedCode = await verifyEmailCode(email, code, "password_reset");
+    if (verifiedCode.error) {
+      sendError(response, verifiedCode.statusCode, verifiedCode.error);
       return;
     }
 
-    const codeHash = hashEmailCode(email, code);
-    if (!isSameHash(loginCode.codeHash, codeHash)) {
-      await prisma.emailLoginCode.update({
-        where: { id: loginCode.id },
-        data: { attempts: { increment: 1 } },
+    const passwordParts = await hashPassword(payload.password);
+    await prisma.$transaction(async (tx) => {
+      await tx.emailLoginCode.update({
+        where: { id: verifiedCode.codeId },
+        data: { usedAt: new Date() },
       });
-      sendError(response, 400, "验证码错误或已过期。");
-      return;
-    }
-
-    await prisma.emailLoginCode.update({
-      where: { id: loginCode.id },
-      data: { usedAt: new Date() },
+      await tx.account.update({
+        where: { clientId: account.clientId },
+        data: {
+          passwordHash: passwordParts.passwordHash,
+          passwordSalt: passwordParts.passwordSalt,
+        },
+      });
+      await tx.authSession.deleteMany({ where: { clientId: account.clientId } });
     });
 
-    const account = await accountForEmailLogin(email, request);
-    const session = await createSession(account, request);
     sendJson(response, 200, {
-      auth: { token: session.token, expiresAt: session.expiresAt, clientId: account.clientId },
-      account: await accountSummary(account.clientId),
+      ok: true,
+      message: "密码已重置，请重新登录。",
     });
   } catch (error) {
     sendError(response, 500, error.message);
@@ -1181,7 +1221,7 @@ ensureStorage().then(() => {
 
   const api = express.Router();
   api.use(apiGuard);
-  api.post(["/auth/register", "/auth/login", "/auth/email-code/send", "/auth/email-code/login"], (request, response, next) => {
+  api.post(["/auth/register", "/auth/login", "/auth/email-code/send", "/auth/email-code/login", "/auth/password-reset"], (request, response, next) => {
     if (isRateLimited(request, "auth", AUTH_RATE_LIMIT)) {
       sendError(response, 429, "登录尝试过于频繁，请稍后再试。");
       return;
@@ -1194,6 +1234,7 @@ ensureStorage().then(() => {
   api.post("/auth/login", asyncRoute(handleLogin));
   api.post("/auth/email-code/send", asyncRoute(handleSendEmailCode));
   api.post("/auth/email-code/login", asyncRoute(handleEmailCodeLogin));
+  api.post("/auth/password-reset", asyncRoute(handlePasswordReset));
   api.post("/auth/logout", asyncRoute(handleLogout));
   api.get("/entitlement", asyncRoute(handleCurrentEntitlement));
   api.get("/account", asyncRoute(handleGetAccount));

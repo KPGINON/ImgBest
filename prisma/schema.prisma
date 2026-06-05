@@ -30,13 +30,14 @@ model Account {
 model EmailLoginCode {
   id        String    @id
   email     String
+  purpose   String    @default("login")
   codeHash  String    @map("code_hash")
   attempts  Int       @default(0)
   usedAt    DateTime? @map("used_at")
   expiresAt DateTime  @map("expires_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
-  @@index([email, createdAt])
+  @@index([email, purpose, createdAt])
   @@index([email, expiresAt])
   @@map("email_login_codes")
 }

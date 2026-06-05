@@ -231,25 +231,48 @@
               <h3 id="auth-title">登录 ImgBest</h3>
               <p>登录后可生成商用素材、查看积分和历史任务</p>
             </div>
-            <div class="auth-tabs" role="tablist" aria-label="登录方式">
-              <button class="is-active" id="authPasswordTab" type="button" data-auth-tab="password">账号登录</button>
-              <button id="authEmailTab" type="button" data-auth-tab="email">邮箱验证码登录</button>
+            <div class="auth-tabs" role="tablist" aria-label="账号操作">
+              <button class="is-active" id="authLoginViewButton" type="button" data-auth-view="login">登录</button>
+              <button id="authRegisterViewButton" type="button" data-auth-view="register">注册</button>
+              <button id="authForgotViewButton" type="button" data-auth-view="forgot">找回密码</button>
             </div>
-            <form class="auth-form auth-tab-panel is-active" id="authForm" data-auth-panel="password">
-              <input id="authUsername" name="username" type="text" autocomplete="username" placeholder="账号" />
+            <form class="auth-form auth-view-panel is-active" id="authForm" data-auth-panel="login">
+              <input id="authUsername" name="identifier" type="text" autocomplete="username" placeholder="账号或邮箱" />
               <input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="密码至少 8 位" />
               <div class="auth-actions-row">
                 <button class="submit-button" id="loginButton" type="submit">登录</button>
-                <button class="export-button" id="registerButton" type="button">注册</button>
+              </div>
+              <div class="auth-link-row">
+                <button type="button" data-auth-view-link="register">没有账号？立即注册</button>
+                <button type="button" data-auth-view-link="forgot">忘记密码？</button>
               </div>
             </form>
-            <form class="auth-form email-auth-form auth-tab-panel" id="emailAuthForm" data-auth-panel="email">
+            <form class="auth-form auth-view-panel" id="emailAuthForm" data-auth-panel="register">
+              <input id="registerUsername" name="username" type="text" autocomplete="username" placeholder="账号" />
               <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="邮箱" />
               <div class="email-code-row">
                 <input id="authEmailCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
                 <button class="export-button" id="sendEmailCodeButton" type="button">发送验证码</button>
               </div>
-              <button class="submit-button" id="emailLoginButton" type="submit">邮箱验证码登录</button>
+              <input id="registerPassword" name="password" type="password" autocomplete="new-password" placeholder="密码至少 8 位" />
+              <input id="registerPasswordConfirm" name="passwordConfirm" type="password" autocomplete="new-password" placeholder="确认密码" />
+              <button class="submit-button" id="registerButton" type="submit">注册</button>
+              <div class="auth-link-row">
+                <button type="button" data-auth-view-link="login">已有账号？去登录</button>
+              </div>
+            </form>
+            <form class="auth-form auth-view-panel" id="forgotAuthForm" data-auth-panel="forgot">
+              <input id="resetEmail" name="email" type="email" autocomplete="email" placeholder="邮箱" />
+              <div class="email-code-row">
+                <input id="resetEmailCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
+                <button class="export-button" id="sendResetCodeButton" type="button">发送验证码</button>
+              </div>
+              <input id="resetPassword" name="password" type="password" autocomplete="new-password" placeholder="新密码至少 8 位" />
+              <input id="resetPasswordConfirm" name="passwordConfirm" type="password" autocomplete="new-password" placeholder="确认新密码" />
+              <button class="submit-button" id="passwordResetButton" type="submit">重置密码</button>
+              <div class="auth-link-row">
+                <button type="button" data-auth-view-link="login">返回登录</button>
+              </div>
             </form>
             <div class="auth-account-summary" id="authAccountSummary" hidden>
               <span>当前账号</span>
