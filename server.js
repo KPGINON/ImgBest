@@ -1,9 +1,8 @@
-const { createServer } = require("node:http");
-const { readFile, stat, writeFile, mkdir } = require("node:fs/promises");
+const express = require("express");
+const { writeFile, mkdir } = require("node:fs/promises");
 const path = require("node:path");
 const { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } = require("node:crypto");
 const { promisify } = require("node:util");
-const { URL } = require("node:url");
 const { prisma } = require("./src/db");
 
 const ROOT = __dirname;
@@ -53,19 +52,6 @@ const PLAN_CONFIGS = {
   },
 };
 
-const MIME_TYPES = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-};
-
 const scryptAsync = promisify(scrypt);
 const rateBuckets = new Map();
 
@@ -87,17 +73,26 @@ function securityHeaders(extra = {}) {
 }
 
 function sendJson(response, statusCode, data) {
-  const body = Buffer.from(JSON.stringify(data, null, 2));
-  response.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": body.length,
+  response
+    .status(statusCode)
+    .set({
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Client-Id, X-Auth-Token, Authorization",
+      ...securityHeaders(),
+    })
+    .json(data);
+}
+
+function sendNoContent(response) {
+  response.status(204).set({
     "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Client-Id, X-Auth-Token, Authorization",
     ...securityHeaders(),
-  });
-  response.end(body);
+  }).end();
 }
 
 function sendError(response, statusCode, message) {
@@ -192,22 +187,6 @@ async function makeUniqueInviteCode(client = prisma) {
     if (!used) return inviteCode;
   }
   throw new Error("Unable to create a unique invite code");
-}
-
-async function readJsonBody(request) {
-  const chunks = [];
-  let totalLength = 0;
-
-  for await (const chunk of request) {
-    totalLength += chunk.length;
-    if (totalLength > MAX_BODY_SIZE) {
-      throw new Error("Request body is too large");
-    }
-    chunks.push(chunk);
-  }
-
-  if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
 function extensionFromMime(mimeType) {
@@ -460,7 +439,7 @@ async function requireAuthenticatedAccount(request, response) {
 
 async function handleRegister(request, response) {
   try {
-    const payload = await readJsonBody(request);
+    const payload = request.body || {};
     const username = normalizeUsername(payload.username);
     const credentialError = validateCredentials(username, payload.password);
     if (credentialError) {
@@ -521,7 +500,7 @@ async function handleRegister(request, response) {
 
 async function handleLogin(request, response) {
   try {
-    const payload = await readJsonBody(request);
+    const payload = request.body || {};
     const username = normalizeUsername(payload.username);
     if (!username || typeof payload.password !== "string") {
       sendError(response, 400, "请输入账号和密码。");
@@ -686,7 +665,7 @@ async function handleApplyReferral(request, response) {
   try {
     const account = await requireAuthenticatedAccount(request, response);
     if (!account) return;
-    const payload = await readJsonBody(request);
+    const payload = request.body || {};
     sendJson(response, 200, await applyReferral(account.clientId, payload.inviteCode));
   } catch (error) {
     if (error instanceof SyntaxError) {
@@ -703,7 +682,7 @@ async function handleCreatePayment(request, response) {
     if (!account) return;
     const clientId = account.clientId;
 
-    const payload = await readJsonBody(request);
+    const payload = request.body || {};
     const plan = PLAN_CONFIGS[payload.planId];
     const creditPack = CREDIT_PACKS[payload.packId];
     if (!plan && !creditPack) {
@@ -747,7 +726,7 @@ async function handleConfirmPayment(request, response) {
   if (!account) return;
   const clientId = account.clientId;
 
-  const paymentId = request.url.split("/").at(-2);
+  const paymentId = request.params.paymentId;
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, clientId },
   });
@@ -841,7 +820,7 @@ async function insertTaskWithCreditCharge(taskId, payload, response, assets, cre
 
 async function handleGenerateImage(request, response) {
   try {
-    const payload = await readJsonBody(request);
+    const payload = request.body || {};
     const access = assertPlanAccess(request, payload);
     const account = await requireAuthenticatedAccount(request, response);
     if (!account) return;
@@ -893,8 +872,8 @@ async function handleGenerateImage(request, response) {
   }
 }
 
-async function handleListTasks(request, requestUrl, response) {
-  const limit = Math.min(Number(requestUrl.searchParams.get("limit") || 20), 100);
+async function handleListTasks(request, response) {
+  const limit = Math.min(Number(request.query.limit || 20), 100);
   const account = await requireAuthenticatedAccount(request, response);
   if (!account) return;
   const clientId = account.clientId;
@@ -930,42 +909,6 @@ async function handleGetTask(request, taskId, response) {
   sendJson(response, 200, { ...taskToJson(task), assets: task.assets.map(assetToJson) });
 }
 
-async function serveStatic(requestUrl, response) {
-  const requestedPath = decodeURIComponent(requestUrl.pathname);
-  const relativePath = requestedPath === "/" ? "index.html" : requestedPath.slice(1);
-  if (relativePath.startsWith(".") || relativePath.includes("/.")) {
-    sendError(response, 404, "Not found");
-    return;
-  }
-
-  const filePath = path.normalize(path.join(ROOT, relativePath));
-
-  if (!filePath.startsWith(ROOT)) {
-    sendError(response, 403, "Forbidden");
-    return;
-  }
-
-  try {
-    const fileStat = await stat(filePath);
-    if (!fileStat.isFile()) {
-      sendError(response, 404, "Not found");
-      return;
-    }
-
-    const body = await readFile(filePath);
-    response.writeHead(200, {
-      "Content-Type": MIME_TYPES[path.extname(filePath).toLowerCase()] || "application/octet-stream",
-      "Content-Length": body.length,
-      ...securityHeaders({
-        "Cache-Control": path.extname(filePath).toLowerCase() === ".html" ? "no-store" : "public, max-age=3600",
-      }),
-    });
-    response.end(body);
-  } catch {
-    sendError(response, 404, "Not found");
-  }
-}
-
 async function handleHealth(response) {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -984,126 +927,127 @@ async function handleHealth(response) {
   }
 }
 
-async function route(request, response) {
-  const requestUrl = new URL(request.url, `http://${request.headers.host}`);
-  const isApiRequest = requestUrl.pathname.startsWith("/api/");
-  const isPublicApiRequest =
-    requestUrl.pathname === "/api/health" ||
-    requestUrl.pathname === "/api/plans" ||
-    requestUrl.pathname.startsWith("/api/auth/");
+function asyncRoute(handler) {
+  return (request, response, next) => {
+    Promise.resolve(handler(request, response, next)).catch(next);
+  };
+}
 
-  if (isApiRequest && isRateLimited(request, "api", API_RATE_LIMIT)) {
+function applySecurityHeaders(request, response, next) {
+  response.set(securityHeaders());
+  next();
+}
+
+function applyCors(request, response, next) {
+  response.set({
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Client-Id, X-Auth-Token, Authorization",
+  });
+  if (request.method === "OPTIONS") {
+    sendNoContent(response);
+    return;
+  }
+  next();
+}
+
+function apiGuard(request, response, next) {
+  const isPublicApiRequest =
+    request.path === "/health" ||
+    request.path === "/plans" ||
+    request.path.startsWith("/auth/");
+
+  if (isRateLimited(request, "api", API_RATE_LIMIT)) {
     sendError(response, 429, "请求过于频繁，请稍后再试。");
     return;
   }
 
-  if (isApiRequest && !isPublicApiRequest && isSuspiciousCrawler(request)) {
+  if (!isPublicApiRequest && isSuspiciousCrawler(request)) {
     sendError(response, 403, "Forbidden");
     return;
   }
 
-  if (request.method === "OPTIONS") {
-    response.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Client-Id, X-Auth-Token, Authorization",
-      ...securityHeaders(),
-    });
-    response.end();
-    return;
-  }
+  next();
+}
 
-  if (request.method === "GET" && requestUrl.pathname === "/robots.txt") {
-    const body = Buffer.from("User-agent: *\nDisallow: /\n");
-    response.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Content-Length": body.length,
-      ...securityHeaders({ "Cache-Control": "public, max-age=3600" }),
-    });
-    response.end(body);
-    return;
-  }
+ensureStorage().then(() => {
+  const app = express();
 
-  if (request.method === "GET" && requestUrl.pathname === "/api/health") {
-    await handleHealth(response);
-    return;
-  }
+  app.disable("x-powered-by");
+  app.use(applySecurityHeaders);
+  app.use(applyCors);
+  app.use(express.json({ limit: MAX_BODY_SIZE }));
 
-  if (request.method === "GET" && requestUrl.pathname === "/api/plans") {
-    handleListPlans(response);
-    return;
-  }
+  app.get("/robots.txt", (request, response) => {
+    response
+      .status(200)
+      .type("text/plain; charset=utf-8")
+      .set(securityHeaders({ "Cache-Control": "public, max-age=3600" }))
+      .send("User-agent: *\nDisallow: /\n");
+  });
 
-  if (request.method === "POST" && (requestUrl.pathname === "/api/auth/register" || requestUrl.pathname === "/api/auth/login")) {
+  const api = express.Router();
+  api.use(apiGuard);
+  api.post(["/auth/register", "/auth/login"], (request, response, next) => {
     if (isRateLimited(request, "auth", AUTH_RATE_LIMIT)) {
       sendError(response, 429, "登录尝试过于频繁，请稍后再试。");
       return;
     }
-    if (requestUrl.pathname === "/api/auth/register") {
-      await handleRegister(request, response);
-    } else {
-      await handleLogin(request, response);
+    next();
+  });
+  api.get("/health", asyncRoute((request, response) => handleHealth(response)));
+  api.get("/plans", (request, response) => handleListPlans(response));
+  api.post("/auth/register", asyncRoute(handleRegister));
+  api.post("/auth/login", asyncRoute(handleLogin));
+  api.post("/auth/logout", asyncRoute(handleLogout));
+  api.get("/entitlement", asyncRoute(handleCurrentEntitlement));
+  api.get("/account", asyncRoute(handleGetAccount));
+  api.post("/referrals", asyncRoute(handleApplyReferral));
+  api.post("/payments", asyncRoute(handleCreatePayment));
+  api.post("/payments/:paymentId/confirm", asyncRoute(handleConfirmPayment));
+  api.get("/tasks", asyncRoute(handleListTasks));
+  api.get("/tasks/:taskId", asyncRoute((request, response) => handleGetTask(request, request.params.taskId, response)));
+  api.post("/generate-image", asyncRoute(handleGenerateImage));
+  api.use((request, response) => sendError(response, 404, "Not found"));
+
+  app.use("/api", api);
+
+  app.get("/", (request, response) => {
+    response.set(securityHeaders({ "Cache-Control": "no-store" }));
+    response.sendFile(path.join(ROOT, "index.html"));
+  });
+
+  app.use(
+    express.static(ROOT, {
+      dotfiles: "deny",
+      index: false,
+      maxAge: "1h",
+      setHeaders(response, filePath) {
+        const cacheControl = path.extname(filePath).toLowerCase() === ".html" ? "no-store" : "public, max-age=3600";
+        response.set(securityHeaders({ "Cache-Control": cacheControl }));
+      },
+    }),
+  );
+
+  app.use((request, response) => sendError(response, request.method === "GET" ? 404 : 405, request.method === "GET" ? "Not found" : "Method not allowed"));
+
+  app.use((error, request, response, next) => {
+    if (response.headersSent) {
+      next(error);
+      return;
     }
-    return;
-  }
+    if (error instanceof SyntaxError || error.type === "entity.parse.failed") {
+      sendError(response, 400, "Invalid JSON body");
+      return;
+    }
+    if (error.type === "entity.too.large") {
+      sendError(response, 413, "Request body is too large");
+      return;
+    }
+    sendError(response, 500, error.message);
+  });
 
-  if (request.method === "POST" && requestUrl.pathname === "/api/auth/logout") {
-    await handleLogout(request, response);
-    return;
-  }
-
-  if (request.method === "GET" && requestUrl.pathname === "/api/entitlement") {
-    await handleCurrentEntitlement(request, response);
-    return;
-  }
-
-  if (request.method === "GET" && requestUrl.pathname === "/api/account") {
-    await handleGetAccount(request, response);
-    return;
-  }
-
-  if (request.method === "POST" && requestUrl.pathname === "/api/referrals") {
-    await handleApplyReferral(request, response);
-    return;
-  }
-
-  if (request.method === "POST" && requestUrl.pathname === "/api/payments") {
-    await handleCreatePayment(request, response);
-    return;
-  }
-
-  if (request.method === "POST" && /^\/api\/payments\/[^/]+\/confirm$/.test(requestUrl.pathname)) {
-    await handleConfirmPayment(request, response);
-    return;
-  }
-
-  if (request.method === "GET" && requestUrl.pathname === "/api/tasks") {
-    await handleListTasks(request, requestUrl, response);
-    return;
-  }
-
-  if (request.method === "GET" && requestUrl.pathname.startsWith("/api/tasks/")) {
-    await handleGetTask(request, requestUrl.pathname.split("/").pop(), response);
-    return;
-  }
-
-  if (request.method === "POST" && requestUrl.pathname === "/api/generate-image") {
-    await handleGenerateImage(request, response);
-    return;
-  }
-
-  if (request.method === "GET") {
-    await serveStatic(requestUrl, response);
-    return;
-  }
-
-  sendError(response, 405, "Method not allowed");
-}
-
-ensureStorage().then(() => {
-  createServer((request, response) => {
-    route(request, response).catch((error) => sendError(response, 500, error.message));
-  }).listen(PORT, "127.0.0.1", () => {
+  app.listen(PORT, "127.0.0.1", () => {
     console.log(`ImgBest server running at http://127.0.0.1:${PORT}`);
     console.log("Storage: PostgreSQL via Prisma");
   });
