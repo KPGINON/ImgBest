@@ -15,90 +15,141 @@
       <nav class="nav" aria-label="主导航">
         <a href="#home">首页</a>
         <a href="#packages">服务套餐</a>
-        <a href="#recharge">充值</a>
-        <a href="#studio">定制生成</a>
+        <a href="#studio">生成工作台</a>
         <a href="#replace">一键换包</a>
-        <a href="#quality">交付质检</a>
-        <a class="nav-profile" href="#profile">个人主页</a>
+        <a href="#quality">质检</a>
+        <a href="#recharge">充值</a>
       </nav>
+      <div class="nav-actions" aria-label="账户入口">
+        <a class="nav-login" id="navGuestActions" href="#profile">登录/注册</a>
+        <a class="nav-account" id="navAccountActions" href="#profile" hidden>
+          <span id="navTopCredit">0 积分</span>
+          <strong>个人中心</strong>
+        </a>
+      </div>
     </header>
 
     <main>
       <section class="hero page is-active" id="home" aria-labelledby="hero-title">
-        <div class="hero-media" aria-hidden="true">
-          <img src="./assets/hero-bag-model.png" alt="" />
-          <div class="hero-scrim"></div>
-        </div>
         <div class="hero-content">
-          <p class="eyebrow">AI 电商产品图工作台</p>
-          <h1 id="hero-title">电商产品图批量定制生成</h1>
+          <p class="eyebrow">AI 电商商品图生成 SaaS</p>
+          <h1 id="hero-title">上传商品图，一键生成可上架的 AI 电商图</h1>
           <p class="hero-copy">
-            用品牌风格包、场景模板、批量变体和卖点提炼，把一张商品 brief 扩展成首图、详情页和广告投放素材。
+            为淘宝、小红书、拼多多和独立站商家生成模特拿包图、商品场景图、主图和详情页素材。
           </p>
           <div class="hero-actions">
-            <a class="primary-button" href="#studio">开始定制</a>
-            <a class="secondary-button" href="#packages">查看套餐</a>
+            <a class="primary-button" href="#studio">立即开始生成</a>
+            <a class="secondary-button" href="#packages">查看价格</a>
           </div>
           <dl class="hero-metrics" aria-label="服务指标">
             <div>
-              <dt>30 张</dt>
-              <dd>单 brief 批量出图</dd>
+              <dt>3 分钟</dt>
+              <dd>从素材到出图任务</dd>
             </div>
             <div>
-              <dt>3 张</dt>
-              <dd>精选精修交付</dd>
+              <dt>多平台</dt>
+              <dd>主图/详情页/广告</dd>
             </div>
             <div>
-              <dt>2 次</dt>
-              <dd>修改反馈闭环</dd>
+              <dt>可复核</dt>
+              <dd>生成记录与质检清单</dd>
             </div>
           </dl>
         </div>
+        <aside class="hero-demo" aria-label="产品效果展示">
+          <div class="demo-toolbar">
+            <span>ImgBest Workflow</span>
+            <strong>商业成片流程</strong>
+          </div>
+          <div class="demo-flow">
+            <article>
+              <span>01 原图</span>
+              <div class="demo-shot is-source">
+                <img src="./assets/hero-bag-model.png" alt="商品原图示例" />
+              </div>
+              <p>上传商品图和参考角度</p>
+            </article>
+            <article>
+              <span>02 AI 模特图</span>
+              <div class="demo-shot is-ai">
+                <img src="./assets/hero-bag-model.png" alt="AI 模特图示例" />
+              </div>
+              <p>自动生成持包场景</p>
+            </article>
+            <article>
+              <span>03 商用成片</span>
+              <div class="demo-shot is-final">
+                <img src="./assets/hero-bag-model.png" alt="商用成片示例" />
+              </div>
+              <p>筛选、质检、导出上架素材</p>
+            </article>
+          </div>
+          <div class="demo-footer">
+            <span>Prompt 成熟度</span>
+            <strong>92%</strong>
+          </div>
+        </aside>
       </section>
 
       <section class="packages page" id="packages" aria-labelledby="packages-title">
         <div class="section-heading split-heading">
           <div>
-            <p class="eyebrow">Service Packages</p>
-            <h2 id="packages-title">先把女包商品图服务卖清楚</h2>
+            <p class="eyebrow">Pricing</p>
+            <h2 id="packages-title">按真实交付售卖，不让商家猜成本</h2>
           </div>
           <p>
-            页面主打“可上架成片”，弱化空泛的平台感，把生成、筛图、精修和修改次数拆成商家容易理解的交付。
+            从试用到精修交付，把生成张数、精选张数、修改次数和人工复核讲清楚，适合直接对外报价。
           </p>
         </div>
         <div class="package-grid">
           <article class="package-card" data-plan-card="basic">
-            <span>基础试单</span>
-            <h3>5 积分/次</h3>
-            <p>生成 30 张包包 AI 场景图，精选 3 张做基础修正，适合白底图转小红书风格。</p>
-            <ul>
-              <li>商品图批量生成</li>
-              <li>基础清晰度放大</li>
-              <li>不承诺复杂 logo 还原</li>
-            </ul>
-            <a class="plan-button" href="#recharge">去充值</a>
+            <div class="package-topline">
+              <span>试用生成</span>
+              <small>适合测款</small>
+            </div>
+            <h3><strong>9.9</strong> 元 / 次</h3>
+            <p>适合刚开始验证 AI 商品图效果的单品卖家。</p>
+            <dl class="package-specs">
+              <div><dt>适合人群</dt><dd>新店/测款/低频出图</dd></div>
+              <div><dt>生成张数</dt><dd>8 张</dd></div>
+              <div><dt>精选张数</dt><dd>1 张</dd></div>
+              <div><dt>修改次数</dt><dd>0 次</dd></div>
+              <div><dt>人工复核</dt><dd>不包含</dd></div>
+            </dl>
+            <a class="plan-button" href="#studio">开始试用</a>
           </article>
           <article class="package-card is-featured" data-plan-card="pro">
-            <span>主推套餐</span>
-            <h3>9.9 积分/次</h3>
-            <p>生成 20 张 AI 模特拿包图，精修 3 张，支持 2 次修改，适合淘宝、小红书、拼多多上架。</p>
-            <ul>
-              <li>模特持包自然度检查</li>
-              <li>包型、颜色、材质一致性锁定</li>
-              <li>渠道尺寸裁切建议</li>
-            </ul>
-            <a class="plan-button" href="#recharge">去充值</a>
+            <div class="recommend-badge">推荐</div>
+            <div class="package-topline">
+              <span>商用精选</span>
+              <small>适合日常上架</small>
+            </div>
+            <h3><strong>39</strong> 元 / 次</h3>
+            <p>面向淘宝、小红书、拼多多商家，生成后筛选可上架素材。</p>
+            <dl class="package-specs">
+              <div><dt>适合人群</dt><dd>稳定上新/多渠道运营</dd></div>
+              <div><dt>生成张数</dt><dd>20 张</dd></div>
+              <div><dt>精选张数</dt><dd>3 张</dd></div>
+              <div><dt>修改次数</dt><dd>2 次</dd></div>
+              <div><dt>人工复核</dt><dd>基础复核</dd></div>
+            </dl>
+            <a class="plan-button" href="#studio">生成商用图</a>
           </article>
           <article class="package-card" data-plan-card="premium">
-            <span>精修交付</span>
-            <h3>19.9 积分/次</h3>
-            <p>生成 30 张 AI 模特图，精修 5 张，支持 3 次修改，复杂五金、手部和包边交给人工复核。</p>
-            <ul>
-              <li>人工质检清单</li>
-              <li>详情页/广告图组合</li>
-              <li>复杂图可外包精修</li>
-            </ul>
-            <a class="plan-button" href="#recharge">去充值</a>
+            <div class="package-topline">
+              <span>精修交付</span>
+              <small>适合重点爆品</small>
+            </div>
+            <h3><strong>99</strong> 元 / 单</h3>
+            <p>适合主推款、广告投放和需要人工检查手部/包型的素材。</p>
+            <dl class="package-specs">
+              <div><dt>适合人群</dt><dd>爆品/广告/高客单价商品</dd></div>
+              <div><dt>生成张数</dt><dd>30 张</dd></div>
+              <div><dt>精选张数</dt><dd>5 张</dd></div>
+              <div><dt>修改次数</dt><dd>3 次</dd></div>
+              <div><dt>人工复核</dt><dd>包含</dd></div>
+            </dl>
+            <a class="plan-button" href="#studio">提交精修单</a>
           </article>
         </div>
       </section>
@@ -181,24 +232,38 @@
           <p>查看账户积分、邀请信息、积分流水，以及当前账号生成过的图片任务。</p>
         </div>
         <section class="auth-panel" aria-labelledby="auth-title">
-          <div>
-            <span id="auth-title">账号登录</span>
-            <p id="authStatus">注册或登录后才能充值、生成和查看历史。</p>
-          </div>
-          <div class="auth-methods">
-            <form class="auth-form" id="authForm">
+          <div class="auth-card" id="authCard">
+            <div class="auth-card-header">
+              <h3 id="auth-title">登录 ImgBest</h3>
+              <p>登录后可生成商用素材、查看积分和历史任务</p>
+            </div>
+            <div class="auth-tabs" role="tablist" aria-label="登录方式">
+              <button class="is-active" id="authPasswordTab" type="button" data-auth-tab="password">账号登录</button>
+              <button id="authEmailTab" type="button" data-auth-tab="email">邮箱验证码登录</button>
+            </div>
+            <form class="auth-form auth-tab-panel is-active" id="authForm" data-auth-panel="password">
               <input id="authUsername" name="username" type="text" autocomplete="username" placeholder="账号" />
               <input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="密码至少 8 位" />
-              <button class="export-button" id="loginButton" type="submit">登录</button>
-              <button class="export-button" id="registerButton" type="button">注册</button>
-              <button class="export-button" id="logoutButton" type="button" hidden>退出</button>
+              <div class="auth-actions-row">
+                <button class="submit-button" id="loginButton" type="submit">登录</button>
+                <button class="export-button" id="registerButton" type="button">注册</button>
+              </div>
             </form>
-            <form class="auth-form email-auth-form" id="emailAuthForm">
+            <form class="auth-form email-auth-form auth-tab-panel" id="emailAuthForm" data-auth-panel="email">
               <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="邮箱" />
-              <input id="authEmailCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
-              <button class="export-button" id="sendEmailCodeButton" type="button">发送验证码</button>
-              <button class="export-button" id="emailLoginButton" type="submit">邮箱验证码登录</button>
+              <div class="email-code-row">
+                <input id="authEmailCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
+                <button class="export-button" id="sendEmailCodeButton" type="button">发送验证码</button>
+              </div>
+              <button class="submit-button" id="emailLoginButton" type="submit">邮箱验证码登录</button>
             </form>
+            <div class="auth-account-summary" id="authAccountSummary" hidden>
+              <span>当前账号</span>
+              <strong id="authAccountName">-</strong>
+              <p>积分余额 <b id="authAccountCredits">0</b></p>
+              <button class="export-button" id="logoutButton" type="button" hidden>退出登录</button>
+            </div>
+            <p class="auth-status" id="authStatus">注册或登录后才能充值、生成和查看历史。</p>
           </div>
         </section>
         <div class="profile-grid">
@@ -213,11 +278,12 @@
             <p id="profileInviteLink">加载中</p>
           </article>
           <article class="profile-card">
-            <span>账户编号</span>
-            <strong id="profileClientId">-</strong>
-            <p>本地浏览器账户，用于查询当前设备的生成记录。</p>
+            <span>生成次数</span>
+            <strong id="profileTaskCount">0</strong>
+            <p>当前账号下的商品图生成与一键换包任务。</p>
           </article>
         </div>
+        <p class="profile-client-meta">账户编号：<span id="profileClientId">-</span></p>
         <div class="profile-layout">
           <section class="profile-panel" aria-labelledby="credit-ledger-title">
             <div class="mini-heading">
@@ -251,6 +317,10 @@
 
         <div class="workspace">
           <form class="control-panel" id="generationForm">
+            <div class="panel-header">
+              <span>生成设置</span>
+              <p>选择渠道、交付等级和画幅，系统会自动组合商品图 prompt。</p>
+            </div>
             <label class="field">
               <span>商品类型</span>
               <select id="productType">
@@ -302,6 +372,10 @@
               </label>
             </div>
 
+            <div class="panel-header">
+              <span>上传/参数</span>
+              <p>补充商品卖点、场景模板和批量变体，提升可上架比例。</p>
+            </div>
             <div class="template-grid" aria-label="场景模板">
               <button class="template-card is-active" type="button" data-template="sunlit city street, natural walking pose, premium editorial product focus">
                 <span>通勤街拍</span>
@@ -441,9 +515,12 @@
       </section>
 
       <section class="replace page" id="replace" aria-labelledby="replace-title">
-        <div class="section-heading">
-          <p class="eyebrow">AI Replacement</p>
-          <h2 id="replace-title">一键替换模特手中的包</h2>
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">AI Replacement</p>
+            <h2 id="replace-title">一键替换模特手中的包</h2>
+          </div>
+          <p>正面、左 45°、右 45°、顶部和模特图越完整，包型、五金、肩带和阴影还原度越高。</p>
         </div>
         <div class="access-banner" id="replaceAccess">
           一键换包需要开通主推套餐或精修交付。
@@ -451,6 +528,10 @@
 
         <div class="replace-workspace">
           <form class="replace-panel" id="replaceForm">
+            <div class="panel-header">
+              <span>参考包图上传</span>
+              <p>建议使用同一光线下的多角度图片，至少上传模特图和 1 张包图。</p>
+            </div>
             <div class="upload-grid">
               <label class="upload-card">
                 <input type="file" accept="image/*" data-upload="bagFront" />
@@ -526,6 +607,16 @@
                 <h3>换包结果</h3>
               </div>
               <span class="status-pill" id="replaceStatus">待上传</span>
+            </div>
+            <div class="before-after-preview" aria-label="换包前后效果预览">
+              <div>
+                <span>换包前</span>
+                <img src="./assets/hero-bag-model.png" alt="换包前效果示例" />
+              </div>
+              <div>
+                <span>换包后</span>
+                <img src="./assets/hero-bag-model.png" alt="换包后效果示例" />
+              </div>
             </div>
             <div class="replace-canvas">
               <img id="replaceResult" src="./assets/hero-bag-model.png" alt="AI 一键换包结果预览" />

@@ -43,7 +43,7 @@ const replaceReadiness = document.querySelector("#replaceReadiness");
 const exportReplacePayload = document.querySelector("#exportReplacePayload");
 const qualityScore = document.querySelector("#qualityScore");
 const qualityChecklist = document.querySelector("#qualityChecklist");
-const pageLinks = document.querySelectorAll(".nav a, .hero-actions a");
+const pageLinks = document.querySelectorAll(".nav a, .nav-actions a, .hero-actions a");
 const pages = document.querySelectorAll(".page");
 const planButtons = document.querySelectorAll("[data-plan-id]");
 const rechargeButtons = document.querySelectorAll("[data-pack-id]");
@@ -64,6 +64,7 @@ const profileCreditMeta = document.querySelector("#profileCreditMeta");
 const profileInviteCode = document.querySelector("#profileInviteCode");
 const profileInviteLink = document.querySelector("#profileInviteLink");
 const profileClientId = document.querySelector("#profileClientId");
+const profileTaskCount = document.querySelector("#profileTaskCount");
 const ledgerList = document.querySelector("#ledgerList");
 const profileTaskHistory = document.querySelector("#profileTaskHistory");
 const refreshProfile = document.querySelector("#refreshProfile");
@@ -75,11 +76,21 @@ const authPassword = document.querySelector("#authPassword");
 const authEmail = document.querySelector("#authEmail");
 const authEmailCode = document.querySelector("#authEmailCode");
 const authStatus = document.querySelector("#authStatus");
+const authTabs = document.querySelectorAll("[data-auth-tab]");
+const authTabPanels = document.querySelectorAll("[data-auth-panel]");
+const authPasswordTab = document.querySelector("#authPasswordTab");
+const authEmailTab = document.querySelector("#authEmailTab");
+const authAccountSummary = document.querySelector("#authAccountSummary");
+const authAccountName = document.querySelector("#authAccountName");
+const authAccountCredits = document.querySelector("#authAccountCredits");
 const loginButton = document.querySelector("#loginButton");
 const registerButton = document.querySelector("#registerButton");
 const sendEmailCodeButton = document.querySelector("#sendEmailCodeButton");
 const emailLoginButton = document.querySelector("#emailLoginButton");
 const logoutButton = document.querySelector("#logoutButton");
+const navGuestActions = document.querySelector("#navGuestActions");
+const navAccountActions = document.querySelector("#navAccountActions");
+const navTopCredit = document.querySelector("#navTopCredit");
 
 let selectedTemplate = document.querySelector(".template-card.is-active")?.dataset.template || "";
 let latestPayload = null;
@@ -87,6 +98,7 @@ let latestReplacePayload = null;
 let activeEntitlement = null;
 let pendingPayment = null;
 let accountState = null;
+let activeAuthMethod = "password";
 let emailCodeCountdown = 0;
 let emailCodeTimer = null;
 const replacementAssets = {
@@ -133,6 +145,7 @@ function clearAuthState() {
   accountState = null;
   activeEntitlement = null;
   pendingPayment = null;
+  activeAuthMethod = "password";
   renderAuthState();
   updateAccessState();
   renderProfileTasks([]);
@@ -169,6 +182,12 @@ function renderAuthState() {
   authStatus.textContent = loggedIn
     ? `已登录：${accountDisplayName()}`
     : "注册或登录后才能充值、生成和查看历史。";
+  navGuestActions.hidden = loggedIn;
+  navAccountActions.hidden = !loggedIn;
+  navTopCredit.textContent = `${creditBalanceValue().toFixed(1).replace(/\.0$/, "")} 积分`;
+  authAccountSummary.hidden = !loggedIn;
+  authAccountName.textContent = accountDisplayName() || "-";
+  authAccountCredits.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
   logoutButton.hidden = !loggedIn;
   loginButton.hidden = loggedIn;
   registerButton.hidden = loggedIn;
@@ -177,6 +196,15 @@ function renderAuthState() {
   authEmail.disabled = loggedIn;
   authEmailCode.disabled = loggedIn;
   emailLoginButton.hidden = loggedIn;
+  authTabs.forEach((tab) => {
+    tab.hidden = loggedIn;
+    tab.classList.toggle("is-active", tab.dataset.authTab === activeAuthMethod);
+  });
+  authTabPanels.forEach((panel) => {
+    const isActive = panel.dataset.authPanel === activeAuthMethod;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = loggedIn || !isActive;
+  });
   updateEmailCodeButton();
 }
 
@@ -257,6 +285,8 @@ function updateAccessState() {
   }
   creditBalance.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
   creditHint.textContent = `基础 ${CREDIT_COSTS.basic} 积分 / 主推 ${CREDIT_COSTS.pro} 积分 / 精修 ${CREDIT_COSTS.premium} 积分。`;
+  navTopCredit.textContent = `${creditBalanceValue().toFixed(1).replace(/\.0$/, "")} 积分`;
+  authAccountCredits.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
 
   if (accountState?.account) {
     const url = new URL(window.location.href);
@@ -343,6 +373,7 @@ function imageForTask(task) {
 }
 
 function renderProfileTasks(tasks = []) {
+  profileTaskCount.textContent = String(tasks.length);
   if (!tasks.length) {
     profileTaskHistory.innerHTML = '<p class="empty-state">暂无生成历史。</p>';
     return;
@@ -899,6 +930,13 @@ refreshProfile.addEventListener("click", async () => {
 });
 
 refreshTaskHistory.addEventListener("click", loadProfileTasks);
+
+authTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    activeAuthMethod = tab.dataset.authTab || "password";
+    renderAuthState();
+  });
+});
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
