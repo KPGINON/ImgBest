@@ -9,9 +9,9 @@ const PLAN_RANK = {
   premium: 3,
 };
 const PLAN_LABELS = {
-  basic: "基础试单",
-  pro: "主推套餐",
-  premium: "精修交付",
+  basic: "普通生成",
+  pro: "正常生成",
+  premium: "进阶生成",
 };
 const CREDIT_COSTS = {
   basic: 5,
@@ -259,9 +259,7 @@ function updateAccessState() {
       ? `积分余额充足，本次将消耗 ${CREDIT_COSTS[generationRequiredPlan]} 积分。`
       : !loggedIn
         ? "请先登录账号，再提交生成任务。"
-        : canGenerateByPlan
-        ? `当前生成配置需要 ${CREDIT_COSTS[generationRequiredPlan]} 积分，余额不足。`
-        : `当前生成配置需要开通${PLAN_LABELS[generationRequiredPlan]}后才能提交。`,
+        : `当前生成配置需要 ${CREDIT_COSTS[generationRequiredPlan]} 积分，余额不足请先充值。`,
   );
   setAccessBanner(
     replaceAccess,
@@ -270,9 +268,7 @@ function updateAccessState() {
       ? `积分余额充足，一键换包将消耗 ${CREDIT_COSTS[replaceRequiredPlan]} 积分。`
       : !loggedIn
         ? "请先登录账号，再使用一键换包。"
-        : canReplaceByPlan
-        ? `一键换包需要 ${CREDIT_COSTS[replaceRequiredPlan]} 积分，余额不足。`
-        : "一键换包需要开通主推套餐或精修交付。",
+        : `一键换包需要 ${CREDIT_COSTS[replaceRequiredPlan]} 积分，余额不足请先充值。`,
   );
 
   currentPlan.textContent = "按次扣积分";
@@ -281,10 +277,10 @@ function updateAccessState() {
   } else if (pendingPayment) {
     paymentHint.textContent = `订单 ${pendingPayment.id} 待确认，支付后可获得 ${pendingPayment.creditPack.creditGrant} 积分。`;
   } else {
-    paymentHint.textContent = "充值后按功能扣积分：基础 5，主推 9.9，精修 19.9。";
+    paymentHint.textContent = "充值后按生成模式扣积分：普通 5，正常 9.9，进阶 19.9。";
   }
   creditBalance.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
-  creditHint.textContent = `基础 ${CREDIT_COSTS.basic} 积分 / 主推 ${CREDIT_COSTS.pro} 积分 / 精修 ${CREDIT_COSTS.premium} 积分。`;
+  creditHint.textContent = `普通 ${CREDIT_COSTS.basic} 积分 / 正常 ${CREDIT_COSTS.pro} 积分 / 进阶 ${CREDIT_COSTS.premium} 积分。`;
   navTopCredit.textContent = `${creditBalanceValue().toFixed(1).replace(/\.0$/, "")} 积分`;
   authAccountCredits.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
 
@@ -306,7 +302,7 @@ function updateAccessState() {
     const planId = button.dataset.planId;
     const isCurrent = activeEntitlement?.planId === planId;
     button.disabled = isCurrent;
-    button.textContent = isCurrent ? "当前已开通" : `开通${PLAN_LABELS[planId]}`;
+    button.textContent = isCurrent ? "当前模式" : PLAN_LABELS[planId];
   });
 }
 
@@ -327,11 +323,11 @@ function escapeHtml(value) {
 function reasonLabel(reason) {
   const labels = {
     credit_recharge: "充值到账",
-    payment_credit: "套餐充值",
+    payment_credit: "积分充值",
     invite_reward: "邀请奖励",
-    basic_generation: "基础生成",
-    pro_generation: "主推生成",
-    premium_generation: "精修生成",
+    basic_generation: "普通生成",
+    pro_generation: "正常生成",
+    premium_generation: "进阶生成",
   };
   return labels[reason] || reason;
 }
@@ -339,7 +335,7 @@ function reasonLabel(reason) {
 function renderProfileSummary(inviteUrl = "") {
   if (!accountState?.account) return;
   profileCreditBalance.textContent = creditBalanceValue().toFixed(1).replace(/\.0$/, "");
-  profileCreditMeta.textContent = `基础 ${CREDIT_COSTS.basic} / 主推 ${CREDIT_COSTS.pro} / 精修 ${CREDIT_COSTS.premium} 积分每次。`;
+  profileCreditMeta.textContent = `普通 ${CREDIT_COSTS.basic} / 正常 ${CREDIT_COSTS.pro} / 进阶 ${CREDIT_COSTS.premium} 积分每次。`;
   profileInviteCode.textContent = accountState.account.inviteCode;
   profileInviteLink.textContent = inviteUrl || inviteLink.textContent || "-";
   profileClientId.textContent = getClientId();
@@ -513,7 +509,7 @@ function renderQualityChecklist(payload, response = null) {
     payload.modules.includes("accurate hands and bag straps")
       ? "已强调手部和肩带自然，出图后优先筛掉畸形握持。"
       : "建议加入手部、肩带约束。",
-    hasRetouch ? "交付等级包含人工精修复核，适合高还原度订单。" : "当前等级适合预览或商用精选，复杂 logo/五金不要过度承诺。",
+    hasRetouch ? "进阶生成包含重点复核提示，适合高还原度订单。" : "当前等级适合普通预览或正常商用出图，复杂 logo/五金不要过度承诺。",
   ];
 
   qualityScore.textContent = response?.provider === "postgresql" ? `${grade} / 已入库` : grade;
@@ -1024,7 +1020,7 @@ window.addEventListener("hashchange", syncPageFromHash);
 
 exportPayload.addEventListener("click", () => {
   if (!hasPlan(requiredPlanForGeneration())) {
-    paymentHint.textContent = `导出当前生成任务需要先开通${PLAN_LABELS[requiredPlanForGeneration()]}。`;
+    paymentHint.textContent = `当前生成配置需要 ${CREDIT_COSTS[requiredPlanForGeneration()]} 积分，余额不足请先充值。`;
     return;
   }
   latestPayload = latestPayload || buildPromptPayload();
@@ -1039,7 +1035,7 @@ exportPayload.addEventListener("click", () => {
 
 exportReplacePayload.addEventListener("click", () => {
   if (!hasPlan(requiredPlanForReplacement())) {
-    paymentHint.textContent = "导出换包任务需要先开通主推套餐或精修交付。";
+    paymentHint.textContent = `一键换包需要 ${CREDIT_COSTS[requiredPlanForReplacement()]} 积分，余额不足请先充值。`;
     return;
   }
   latestReplacePayload = latestReplacePayload || buildReplacePayload();
@@ -1093,8 +1089,8 @@ form.addEventListener("submit", async (event) => {
     return;
   }
   if (!hasPlan(requiredPlan)) {
-    statusPill.textContent = "未支付";
-    paymentHint.textContent = `当前生成配置需要先开通${PLAN_LABELS[requiredPlan]}。`;
+    statusPill.textContent = "积分不足";
+    paymentHint.textContent = `当前生成配置需要 ${CREDIT_COSTS[requiredPlan]} 积分，余额不足请先充值。`;
     document.querySelector("#packages").scrollIntoView({ behavior: "smooth", block: "start" });
     updateAccessState();
     return;
@@ -1157,8 +1153,8 @@ replaceForm.addEventListener("submit", async (event) => {
     return;
   }
   if (!hasPlan(requiredPlanForReplacement())) {
-    replaceStatus.textContent = "未支付";
-    paymentHint.textContent = "一键换包需要先开通主推套餐或精修交付。";
+    replaceStatus.textContent = "积分不足";
+    paymentHint.textContent = `一键换包需要 ${CREDIT_COSTS[requiredPlanForReplacement()]} 积分，余额不足请先充值。`;
     document.querySelector("#packages").scrollIntoView({ behavior: "smooth", block: "start" });
     updateAccessState();
     return;

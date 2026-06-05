@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ImgBest AI 商品图定制</title>
-    <link rel="stylesheet" href="./styles.css?v=20260604-memory" />
+    <link rel="stylesheet" href="./styles.css?v=20260605-ui-clean" />
   </head>
   <body>
     <header class="topbar">
@@ -14,7 +14,7 @@
       </a>
       <nav class="nav" aria-label="主导航">
         <a href="#home">首页</a>
-        <a href="#packages">服务套餐</a>
+        <a href="#packages">生成模式</a>
         <a href="#studio">生成工作台</a>
         <a href="#replace">一键换包</a>
         <a href="#quality">质检</a>
@@ -94,62 +94,56 @@
       <section class="packages page" id="packages" aria-labelledby="packages-title">
         <div class="section-heading split-heading">
           <div>
-            <p class="eyebrow">Pricing</p>
-            <h2 id="packages-title">按真实交付售卖，不让商家猜成本</h2>
+            <p class="eyebrow">Generation Modes</p>
+            <h2 id="packages-title">生成模式</h2>
           </div>
           <p>
-            从试用到精修交付，把生成张数、精选张数、修改次数和人工复核讲清楚，适合直接对外报价。
+            按次扣积分，适合从快速预览到高质量商用出图的不同需求。
           </p>
         </div>
         <div class="package-grid">
           <article class="package-card" data-plan-card="basic">
             <div class="package-topline">
-              <span>试用生成</span>
-              <small>适合测款</small>
+              <span>普通生成</span>
+              <small>快速预览</small>
             </div>
-            <h3><strong>9.9</strong> 元 / 次</h3>
-            <p>适合刚开始验证 AI 商品图效果的单品卖家。</p>
+            <h3><strong>5</strong> 积分 / 次</h3>
+            <p>适合快速预览商品图效果。</p>
             <dl class="package-specs">
-              <div><dt>适合人群</dt><dd>新店/测款/低频出图</dd></div>
-              <div><dt>生成张数</dt><dd>8 张</dd></div>
-              <div><dt>精选张数</dt><dd>1 张</dd></div>
-              <div><dt>修改次数</dt><dd>0 次</dd></div>
-              <div><dt>人工复核</dt><dd>不包含</dd></div>
+              <div><dt>出图目标</dt><dd>快速商品图</dd></div>
+              <div><dt>适合场景</dt><dd>测试风格和初步筛选</dd></div>
+              <div><dt>扣费方式</dt><dd>按次扣积分</dd></div>
             </dl>
-            <a class="plan-button" href="#studio">开始试用</a>
+            <a class="plan-button" href="#studio">选择普通生成</a>
           </article>
           <article class="package-card is-featured" data-plan-card="pro">
             <div class="recommend-badge">推荐</div>
             <div class="package-topline">
-              <span>商用精选</span>
+              <span>正常生成</span>
               <small>适合日常上架</small>
             </div>
-            <h3><strong>39</strong> 元 / 次</h3>
-            <p>面向淘宝、小红书、拼多多商家，生成后筛选可上架素材。</p>
+            <h3><strong>9.9</strong> 积分 / 次</h3>
+            <p>适合日常商用出图。</p>
             <dl class="package-specs">
-              <div><dt>适合人群</dt><dd>稳定上新/多渠道运营</dd></div>
-              <div><dt>生成张数</dt><dd>20 张</dd></div>
-              <div><dt>精选张数</dt><dd>3 张</dd></div>
-              <div><dt>修改次数</dt><dd>2 次</dd></div>
-              <div><dt>人工复核</dt><dd>基础复核</dd></div>
+              <div><dt>出图目标</dt><dd>电商主图、场景图、模特图</dd></div>
+              <div><dt>适合场景</dt><dd>日常上新</dd></div>
+              <div><dt>扣费方式</dt><dd>按次扣积分</dd></div>
             </dl>
-            <a class="plan-button" href="#studio">生成商用图</a>
+            <a class="plan-button" href="#studio">选择正常生成</a>
           </article>
           <article class="package-card" data-plan-card="premium">
             <div class="package-topline">
-              <span>精修交付</span>
+              <span>进阶生成</span>
               <small>适合重点爆品</small>
             </div>
-            <h3><strong>99</strong> 元 / 单</h3>
-            <p>适合主推款、广告投放和需要人工检查手部/包型的素材。</p>
+            <h3><strong>19.9</strong> 积分 / 次</h3>
+            <p>适合重点商品和高质量交付。</p>
             <dl class="package-specs">
-              <div><dt>适合人群</dt><dd>爆品/广告/高客单价商品</dd></div>
-              <div><dt>生成张数</dt><dd>30 张</dd></div>
-              <div><dt>精选张数</dt><dd>5 张</dd></div>
-              <div><dt>修改次数</dt><dd>3 次</dd></div>
-              <div><dt>人工复核</dt><dd>包含</dd></div>
+              <div><dt>出图目标</dt><dd>高质量模特拿包图、广告图</dd></div>
+              <div><dt>适合场景</dt><dd>重点复核素材</dd></div>
+              <div><dt>扣费方式</dt><dd>按次扣积分</dd></div>
             </dl>
-            <a class="plan-button" href="#studio">提交精修单</a>
+            <a class="plan-button" href="#studio">选择进阶生成</a>
           </article>
         </div>
       </section>
@@ -166,7 +160,7 @@
           <div>
             <span>当前方案</span>
             <strong id="currentPlan">按次扣积分</strong>
-            <p id="paymentHint">充值后按功能扣积分：基础 5，主推 9.9，精修 19.9。</p>
+            <p id="paymentHint">充值后按生成模式扣积分：普通 5，正常 9.9，进阶 19.9。</p>
           </div>
           <div class="credit-balance">
             <span>积分余额</span>
@@ -270,7 +264,7 @@
           <article class="profile-card profile-balance-card">
             <span>积分余额</span>
             <strong id="profileCreditBalance">0</strong>
-            <p id="profileCreditMeta">基础 5 / 主推 9.9 / 精修 19.9 积分每次。</p>
+            <p id="profileCreditMeta">普通 5 / 正常 9.9 / 进阶 19.9 积分每次。</p>
           </article>
           <article class="profile-card profile-invite-card">
             <span>我的邀请码</span>
@@ -309,10 +303,10 @@
       <section class="studio page" id="studio" aria-labelledby="studio-title">
         <div class="section-heading">
           <p class="eyebrow">Custom Studio</p>
-          <h2 id="studio-title">付费版生成工作台</h2>
+          <h2 id="studio-title">积分生成工作台</h2>
         </div>
         <div class="access-banner" id="generationAccess">
-          未支付套餐时不能提交生成任务。基础试单可用基础预览；主推套餐可用商用精选；精修交付可用人工精修和精修大片。
+          生成任务按次扣积分，普通 5 积分，正常 9.9 积分，进阶 19.9 积分。
         </div>
 
         <div class="workspace">
@@ -365,9 +359,9 @@
               <label class="field">
                 <span>交付等级</span>
                 <select id="deliveryTier">
-                  <option value="AI generated preview set, no manual retouch guarantee">基础预览</option>
-                  <option value="commercial-ready selected images with simple retouch checklist" selected>商用精选</option>
-                  <option value="manual retouch review for hands, edges, hardware and product fidelity">人工精修</option>
+                  <option value="AI generated preview set, no manual retouch guarantee">普通生成</option>
+                  <option value="commercial-ready selected images with simple retouch checklist" selected>正常生成</option>
+                  <option value="manual retouch review for hands, edges, hardware and product fidelity">进阶生成</option>
                 </select>
               </label>
             </div>
@@ -435,7 +429,7 @@
                 <select id="generationMode">
                   <option value="balanced">均衡质量</option>
                   <option value="speed">快速出草图</option>
-                  <option value="premium">精修大片</option>
+                  <option value="premium">进阶质量</option>
                 </select>
               </label>
             </div>
@@ -523,7 +517,7 @@
           <p>正面、左 45°、右 45°、顶部和模特图越完整，包型、五金、肩带和阴影还原度越高。</p>
         </div>
         <div class="access-banner" id="replaceAccess">
-          一键换包需要开通主推套餐或精修交付。
+          一键换包按正常生成扣 9.9 积分，请确保积分余额充足。
         </div>
 
         <div class="replace-workspace">
@@ -643,7 +637,7 @@
             <p class="eyebrow">Delivery Guardrails</p>
             <h2 id="quality-title">把 AI 不稳定性写进交付流程</h2>
           </div>
-          <p>低价套餐不承诺 logo、纹理、五金完全一致；高级套餐通过人工复核控制售后成本。</p>
+          <p>不同生成模式对应不同积分消耗；高质量素材仍建议复核包型、纹理、五金和手部细节。</p>
         </div>
         <div class="quality-grid">
           <article>
