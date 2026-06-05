@@ -553,6 +553,7 @@ async function handleRegister(request, response) {
     const username = normalizeUsername(payload.username);
     const email = normalizeEmail(payload.email);
     const code = String(payload.code || "").trim();
+    const submittedInviteCode = String(payload.inviteCode || "").trim().toUpperCase();
     const credentialError = validateCredentials(username, payload.password);
     if (credentialError) {
       sendError(response, 400, credentialError);
@@ -591,6 +592,10 @@ async function handleRegister(request, response) {
       if (usernameOwner) return { error: "该账号已被注册。" };
       const emailOwner = await tx.account.findUnique({ where: { email } });
       if (emailOwner) return { error: "该邮箱已注册，请直接登录或找回密码。" };
+      const inviter = submittedInviteCode
+        ? await tx.account.findUnique({ where: { inviteCode: submittedInviteCode } })
+        : null;
+      if (submittedInviteCode && !inviter) return { error: "邀请码无效。", statusCode: 400 };
 
       const existing = await tx.account.findUnique({ where: { clientId: requestedClientId } });
       const clientId = existing ? `client_${randomUUID().replaceAll("-", "")}` : requestedClientId;
@@ -600,6 +605,7 @@ async function handleRegister(request, response) {
           inviteCode: await makeUniqueInviteCode(tx),
           username,
           email,
+          referredBy: inviter?.clientId || null,
           passwordHash: passwordParts.passwordHash,
           passwordSalt: passwordParts.passwordSalt,
         },
@@ -608,11 +614,15 @@ async function handleRegister(request, response) {
         where: { id: verifiedCode.codeId },
         data: { usedAt: new Date() },
       });
+      if (inviter) {
+        await addCreditEntry(account.clientId, INVITE_REWARD_CREDITS, "invite_signup_reward", inviter.clientId, tx);
+        await addCreditEntry(inviter.clientId, INVITE_REWARD_CREDITS, "invite_reward", account.clientId, tx);
+      }
       return { account };
     });
 
     if (result.error) {
-      sendError(response, 409, result.error);
+      sendError(response, result.statusCode || 409, result.error);
       return;
     }
 

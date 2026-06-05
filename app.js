@@ -76,6 +76,7 @@ const authPassword = document.querySelector("#authPassword");
 const registerUsername = document.querySelector("#registerUsername");
 const registerPassword = document.querySelector("#registerPassword");
 const registerPasswordConfirm = document.querySelector("#registerPasswordConfirm");
+const registerInviteCode = document.querySelector("#registerInviteCode");
 const authEmail = document.querySelector("#authEmail");
 const authEmailCode = document.querySelector("#authEmailCode");
 const forgotAuthForm = document.querySelector("#forgotAuthForm");
@@ -231,6 +232,7 @@ function renderAuthState() {
   registerUsername.disabled = loggedIn;
   registerPassword.disabled = loggedIn;
   registerPasswordConfirm.disabled = loggedIn;
+  registerInviteCode.disabled = loggedIn;
   authEmail.disabled = loggedIn;
   authEmailCode.disabled = loggedIn;
   resetEmail.disabled = loggedIn;
@@ -413,6 +415,7 @@ function reasonLabel(reason) {
     credit_recharge: "充值到账",
     payment_credit: "积分充值",
     invite_reward: "邀请奖励",
+    invite_signup_reward: "受邀注册奖励",
     basic_generation: "普通生成",
     pro_generation: "正常生成",
     premium_generation: "进阶生成",
@@ -793,11 +796,14 @@ async function submitRegister() {
   const code = authEmailCode.value.trim();
   const password = registerPassword.value;
   const passwordConfirm = registerPasswordConfirm.value;
+  const inviteCodeValue = registerInviteCode.value.trim();
+  const body = { username, email, password, code };
+  if (inviteCodeValue) body.inviteCode = inviteCodeValue;
   if (password !== passwordConfirm) throw new Error("两次输入的密码不一致。");
   const response = await fetch("/api/auth/register", {
     method: "POST",
     headers: requestHeaders(),
-    body: JSON.stringify({ username, email, password, code }),
+    body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -807,6 +813,7 @@ async function submitRegister() {
   registerPassword.value = "";
   registerPasswordConfirm.value = "";
   authEmailCode.value = "";
+  registerInviteCode.value = "";
   await loadEntitlement();
   await loadProfileTasks();
 }
@@ -1363,5 +1370,8 @@ if (isAuthenticated()) {
   });
 } else {
   const invitedBy = new URLSearchParams(window.location.search).get("ref");
-  if (invitedBy) referralCode.value = invitedBy;
+  if (invitedBy) {
+    referralCode.value = invitedBy;
+    registerInviteCode.value = invitedBy;
+  }
 }
