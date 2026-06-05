@@ -10,6 +10,7 @@ datasource db {
 model Account {
   clientId     String   @id @map("client_id")
   username     String?  @unique
+  email        String?  @unique
   passwordHash String?  @map("password_hash")
   passwordSalt String?  @map("password_salt")
   inviteCode   String   @unique @map("invite_code")
@@ -24,6 +25,20 @@ model Account {
   sessions      AuthSession[]
 
   @@map("accounts")
+}
+
+model EmailLoginCode {
+  id        String    @id
+  email     String
+  codeHash  String    @map("code_hash")
+  attempts  Int       @default(0)
+  usedAt    DateTime? @map("used_at")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([email, createdAt])
+  @@index([email, expiresAt])
+  @@map("email_login_codes")
 }
 
 model AuthSession {

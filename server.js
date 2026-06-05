@@ -1,4 +1,5 @@
 const express = require("express");
+const nodemailer = require("nodemailer");
 const { writeFile, mkdir } = require("node:fs/promises");
 const path = require("node:path");
 const { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } = require("node:crypto");
@@ -14,6 +15,8 @@ const PASSWORD_KEY_LENGTH = 64;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const API_RATE_LIMIT = 120;
 const AUTH_RATE_LIMIT = 12;
+const EMAIL_CODE_TTL_MS = 5 * 60 * 1000;
+const EMAIL_CODE_RESEND_WINDOW_MS = 60 * 1000;
 const CREDIT_SCALE = 10;
 const INVITE_REWARD_CREDITS = 5 * CREDIT_SCALE;
 const GENERATION_COSTS = {
@@ -127,6 +130,60 @@ function hashToken(token) {
 
 function normalizeUsername(username) {
   return String(username || "").trim().toLowerCase();
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function validateEmail(email) {
+  const normalized = normalizeEmail(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalized) || normalized.length > 254) {
+    return "请输入有效的邮箱地址。";
+  }
+  return null;
+}
+
+function makeEmailCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function hashEmailCode(email, code) {
+  const secret = process.env.EMAIL_CODE_SECRET;
+  if (!secret) {
+    throw new Error("EMAIL_CODE_SECRET is not configured");
+  }
+  return createHash("sha256").update(`${secret}:${normalizeEmail(email)}:${code}`).digest("hex");
+}
+
+function createMailTransporter() {
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port,
+    secure,
+    auth: process.env.SMTP_USER || process.env.SMTP_PASS
+      ? {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        }
+      : undefined,
+  });
+}
+
+async function sendLoginCodeEmail(email, code) {
+  if (!process.env.SMTP_HOST || !process.env.MAIL_FROM) {
+    throw new Error("SMTP_HOST and MAIL_FROM must be configured");
+  }
+  const transporter = createMailTransporter();
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM,
+    to: email,
+    subject: "ImgBest 登录验证码",
+    text: `您的 ImgBest 登录验证码是：${code}\n\n验证码 5 分钟内有效，请勿泄露给他人。`,
+    html: `<p>您的 ImgBest 登录验证码是：</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${code}</p><p>验证码 5 分钟内有效，请勿泄露给他人。</p>`,
+  });
 }
 
 function validateCredentials(username, password) {
@@ -369,7 +426,8 @@ function accountToJson(account) {
   return {
     clientId: account.clientId,
     username: account.username,
-    isRegistered: Boolean(account.username),
+    email: account.email,
+    isRegistered: Boolean(account.username || account.email),
     inviteCode: account.inviteCode,
     referredBy: account.referredBy,
     createdAt: account.createdAt,
@@ -524,6 +582,141 @@ async function handleLogin(request, response) {
       sendError(response, 400, "Invalid JSON body");
       return;
     }
+    sendError(response, 500, error.message);
+  }
+}
+
+async function handleSendEmailCode(request, response) {
+  try {
+    const payload = request.body || {};
+    const email = normalizeEmail(payload.email);
+    const emailError = validateEmail(email);
+    if (emailError) {
+      sendError(response, 400, emailError);
+      return;
+    }
+
+    const recentCode = await prisma.emailLoginCode.findFirst({
+      where: {
+        email,
+        createdAt: {
+          gte: new Date(Date.now() - EMAIL_CODE_RESEND_WINDOW_MS),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (recentCode) {
+      sendError(response, 429, "同一邮箱 60 秒内不能重复发送验证码。");
+      return;
+    }
+
+    const code = makeEmailCode();
+    await prisma.emailLoginCode.create({
+      data: {
+        id: `email_code_${randomUUID().replaceAll("-", "")}`,
+        email,
+        codeHash: hashEmailCode(email, code),
+        expiresAt: new Date(Date.now() + EMAIL_CODE_TTL_MS),
+      },
+    });
+
+    await sendLoginCodeEmail(email, code);
+    sendJson(response, 200, {
+      ok: true,
+      message: "验证码已发送",
+    });
+  } catch (error) {
+    sendError(response, 500, error.message);
+  }
+}
+
+function isSameHash(expectedHash, actualHash) {
+  const expected = Buffer.from(expectedHash, "hex");
+  const actual = Buffer.from(actualHash, "hex");
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+async function accountForEmailLogin(email, request) {
+  const existingByEmail = await prisma.account.findUnique({ where: { email } });
+  if (existingByEmail) return existingByEmail;
+
+  const requestedClientId = getClientId(request) || `client_${randomUUID().replaceAll("-", "")}`;
+  return prisma.$transaction(async (tx) => {
+    const existingByClientId = await tx.account.findUnique({ where: { clientId: requestedClientId } });
+    if (existingByClientId && !existingByClientId.email) {
+      return tx.account.update({
+        where: { clientId: requestedClientId },
+        data: { email },
+      });
+    }
+
+    const clientId = existingByClientId ? `client_${randomUUID().replaceAll("-", "")}` : requestedClientId;
+    return tx.account.create({
+      data: {
+        clientId,
+        email,
+        inviteCode: await makeUniqueInviteCode(tx),
+      },
+    });
+  });
+}
+
+async function handleEmailCodeLogin(request, response) {
+  try {
+    const payload = request.body || {};
+    const email = normalizeEmail(payload.email);
+    const code = String(payload.code || "").trim();
+    const emailError = validateEmail(email);
+    if (emailError) {
+      sendError(response, 400, emailError);
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      sendError(response, 400, "验证码错误或已过期。");
+      return;
+    }
+
+    const loginCode = await prisma.emailLoginCode.findFirst({
+      where: {
+        email,
+        usedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!loginCode) {
+      sendError(response, 400, "验证码错误或已过期。");
+      return;
+    }
+    if (loginCode.attempts >= 5) {
+      sendError(response, 429, "验证码尝试次数过多，请重新获取。");
+      return;
+    }
+
+    const codeHash = hashEmailCode(email, code);
+    if (!isSameHash(loginCode.codeHash, codeHash)) {
+      await prisma.emailLoginCode.update({
+        where: { id: loginCode.id },
+        data: { attempts: { increment: 1 } },
+      });
+      sendError(response, 400, "验证码错误或已过期。");
+      return;
+    }
+
+    await prisma.emailLoginCode.update({
+      where: { id: loginCode.id },
+      data: { usedAt: new Date() },
+    });
+
+    const account = await accountForEmailLogin(email, request);
+    const session = await createSession(account, request);
+    sendJson(response, 200, {
+      auth: { token: session.token, expiresAt: session.expiresAt, clientId: account.clientId },
+      account: await accountSummary(account.clientId),
+    });
+  } catch (error) {
     sendError(response, 500, error.message);
   }
 }
@@ -988,7 +1181,7 @@ ensureStorage().then(() => {
 
   const api = express.Router();
   api.use(apiGuard);
-  api.post(["/auth/register", "/auth/login"], (request, response, next) => {
+  api.post(["/auth/register", "/auth/login", "/auth/email-code/send", "/auth/email-code/login"], (request, response, next) => {
     if (isRateLimited(request, "auth", AUTH_RATE_LIMIT)) {
       sendError(response, 429, "登录尝试过于频繁，请稍后再试。");
       return;
@@ -999,6 +1192,8 @@ ensureStorage().then(() => {
   api.get("/plans", (request, response) => handleListPlans(response));
   api.post("/auth/register", asyncRoute(handleRegister));
   api.post("/auth/login", asyncRoute(handleLogin));
+  api.post("/auth/email-code/send", asyncRoute(handleSendEmailCode));
+  api.post("/auth/email-code/login", asyncRoute(handleEmailCodeLogin));
   api.post("/auth/logout", asyncRoute(handleLogout));
   api.get("/entitlement", asyncRoute(handleCurrentEntitlement));
   api.get("/account", asyncRoute(handleGetAccount));

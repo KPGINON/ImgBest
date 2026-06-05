@@ -69,11 +69,16 @@ const profileTaskHistory = document.querySelector("#profileTaskHistory");
 const refreshProfile = document.querySelector("#refreshProfile");
 const refreshTaskHistory = document.querySelector("#refreshTaskHistory");
 const authForm = document.querySelector("#authForm");
+const emailAuthForm = document.querySelector("#emailAuthForm");
 const authUsername = document.querySelector("#authUsername");
 const authPassword = document.querySelector("#authPassword");
+const authEmail = document.querySelector("#authEmail");
+const authEmailCode = document.querySelector("#authEmailCode");
 const authStatus = document.querySelector("#authStatus");
 const loginButton = document.querySelector("#loginButton");
 const registerButton = document.querySelector("#registerButton");
+const sendEmailCodeButton = document.querySelector("#sendEmailCodeButton");
+const emailLoginButton = document.querySelector("#emailLoginButton");
 const logoutButton = document.querySelector("#logoutButton");
 
 let selectedTemplate = document.querySelector(".template-card.is-active")?.dataset.template || "";
@@ -82,6 +87,8 @@ let latestReplacePayload = null;
 let activeEntitlement = null;
 let pendingPayment = null;
 let accountState = null;
+let emailCodeCountdown = 0;
+let emailCodeTimer = null;
 const replacementAssets = {
   bagFront: null,
   bagLeft45: null,
@@ -131,16 +138,46 @@ function clearAuthState() {
   renderProfileTasks([]);
 }
 
+function accountDisplayName() {
+  const account = accountState?.account;
+  return account?.email || account?.username || account?.clientId || "";
+}
+
+function updateEmailCodeButton() {
+  const loggedIn = isAuthenticated() && accountState?.account;
+  sendEmailCodeButton.disabled = loggedIn || emailCodeCountdown > 0;
+  sendEmailCodeButton.textContent = emailCodeCountdown > 0 ? `${emailCodeCountdown} 秒后重发` : "发送验证码";
+}
+
+function startEmailCodeCountdown() {
+  emailCodeCountdown = 60;
+  updateEmailCodeButton();
+  if (emailCodeTimer) window.clearInterval(emailCodeTimer);
+  emailCodeTimer = window.setInterval(() => {
+    emailCodeCountdown -= 1;
+    if (emailCodeCountdown <= 0) {
+      emailCodeCountdown = 0;
+      window.clearInterval(emailCodeTimer);
+      emailCodeTimer = null;
+    }
+    updateEmailCodeButton();
+  }, 1000);
+}
+
 function renderAuthState() {
   const loggedIn = isAuthenticated() && accountState?.account;
   authStatus.textContent = loggedIn
-    ? `已登录：${accountState.account.username || accountState.account.clientId}`
+    ? `已登录：${accountDisplayName()}`
     : "注册或登录后才能充值、生成和查看历史。";
   logoutButton.hidden = !loggedIn;
   loginButton.hidden = loggedIn;
   registerButton.hidden = loggedIn;
   authUsername.disabled = loggedIn;
   authPassword.disabled = loggedIn;
+  authEmail.disabled = loggedIn;
+  authEmailCode.disabled = loggedIn;
+  emailLoginButton.hidden = loggedIn;
+  updateEmailCodeButton();
 }
 
 function hasPlan(requiredPlanId) {
@@ -635,6 +672,39 @@ async function submitAuth(mode) {
   await loadProfileTasks();
 }
 
+async function sendEmailCode() {
+  const email = authEmail.value.trim();
+  const response = await fetch("/api/auth/email-code/send", {
+    method: "POST",
+    headers: requestHeaders(),
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `发送验证码失败：${response.status}`);
+  }
+  startEmailCodeCountdown();
+  authStatus.textContent = data.message || "验证码已发送";
+}
+
+async function submitEmailCodeLogin() {
+  const email = authEmail.value.trim();
+  const code = authEmailCode.value.trim();
+  const response = await fetch("/api/auth/email-code/login", {
+    method: "POST",
+    headers: requestHeaders(),
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `邮箱验证码登录失败：${response.status}`);
+  }
+  applyAuthPayload(data);
+  authEmailCode.value = "";
+  await loadEntitlement();
+  await loadProfileTasks();
+}
+
 async function logout() {
   await fetch("/api/auth/logout", {
     method: "POST",
@@ -837,7 +907,7 @@ authForm.addEventListener("submit", async (event) => {
   authStatus.textContent = "正在登录。";
   try {
     await submitAuth("login");
-    authStatus.textContent = `已登录：${accountState.account.username}`;
+    authStatus.textContent = `已登录：${accountDisplayName()}`;
   } catch (error) {
     authStatus.textContent = error.message;
   } finally {
@@ -852,12 +922,37 @@ registerButton.addEventListener("click", async () => {
   authStatus.textContent = "正在注册。";
   try {
     await submitAuth("register");
-    authStatus.textContent = `注册成功：${accountState.account.username}`;
+    authStatus.textContent = `注册成功：${accountDisplayName()}`;
   } catch (error) {
     authStatus.textContent = error.message;
   } finally {
     loginButton.disabled = false;
     registerButton.disabled = false;
+  }
+});
+
+sendEmailCodeButton.addEventListener("click", async () => {
+  sendEmailCodeButton.disabled = true;
+  authStatus.textContent = "正在发送验证码。";
+  try {
+    await sendEmailCode();
+  } catch (error) {
+    authStatus.textContent = error.message;
+    updateEmailCodeButton();
+  }
+});
+
+emailAuthForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  emailLoginButton.disabled = true;
+  authStatus.textContent = "正在登录。";
+  try {
+    await submitEmailCodeLogin();
+    authStatus.textContent = `已登录：${accountDisplayName()}`;
+  } catch (error) {
+    authStatus.textContent = error.message;
+  } finally {
+    emailLoginButton.disabled = false;
   }
 });
 

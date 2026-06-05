@@ -513,6 +513,15 @@ a {
   gap: 10px;
 }
 
+.auth-methods {
+  display: grid;
+  gap: 10px;
+}
+
+.email-auth-form {
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 0.7fr) auto auto;
+}
+
 .auth-form input {
   min-height: 44px;
   width: 100%;
@@ -1274,11 +1283,13 @@ textarea:focus {
 
   .payment-actions,
   .invite-actions,
+  .auth-methods,
   .auth-form {
     width: 100%;
   }
 
-  .auth-form {
+  .auth-form,
+  .email-auth-form {
     grid-template-columns: 1fr 1fr;
   }
 
